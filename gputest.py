@@ -64,7 +64,6 @@ for lib in [cp, np]:
 function_labels = {add_arrays: "Add Arrays", background_correction_test: "Background Correction", }
 library_labels = {cp: "cupy", np: "numpy", }
 
-
 # Plot adding times
 plt.subplot(3, 1, 1)
 plt.title("Average Time Taken To Add Two Arrays")
@@ -91,7 +90,7 @@ plt.yscale("log")
 # Plot speed-up
 ax = plt.subplot(3, 1, 3)
 plt.title("Speed Boost Obtained From Using cupy Over numpy")
-ax.set_prop_cycle(color=['purple','green'])
+ax.set_prop_cycle(color=['purple', 'green'])
 
 # Determine the speed up by diving numpy time by gpu time and plot
 for func in funcs:
@@ -111,7 +110,7 @@ import pycuda.driver as cuda
 import pycuda.autoinit
 import numpy
 
-a_gpu = gpuarray.to_gpu(numpy.random.randn(4,4).astype(numpy.float32))
-a_doubled = (a_gpu*a_gpu).get()
+a_gpu = gpuarray.to_gpu(numpy.random.randn(4, 4).astype(numpy.float32))
+a_doubled = (a_gpu * a_gpu).get()
 print(a_doubled)
 print(a_gpu)
