@@ -1,7 +1,7 @@
 import cupy as cp
 import numpy as np
 import time
-import matplotlib
+from matplotlib import pyplot as plt
 
 def cool_timer(func, lib, size, num_arrs):
     arrays = create_arrays(lib, num_arrs)
@@ -25,14 +25,19 @@ array_sizes = [100, 1000, 5000, 10000, 20000]
 
 names = {cp: "cupy", np: "numpy"}
 
-for size in array_sizes:
-    for lib in [cp, np]:
+results = {cp: dict(), np: dict()}
+
+for lib in [cp, np]:
+    results[lib][add_arrays] = []
+    results[lib][background_correction_test] = []
+    for size in array_sizes:
         total_add = 0
         total_bc = 0
         for _ in range(10):
             total_add += cool_timer(add_arrays, lib, size, 2)
             total_bc += cool_timer(background_correction_test, lib, size, 3)
-        print("Library:", names[lib], "/ Size:", size)
-        print(total_add / 10)
-        print(total_bc / 10)
-        print("")
+        results[lib][add_arrays].append(total_add / 10)
+        results[lib][background_correction_test].append(total_bc / 10)
+        
+print(results[np][add_arrays])
+print(results[cp][add_arrays])
