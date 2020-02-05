@@ -104,3 +104,14 @@ plt.ylabel("Avg np Time / Avg cp Time")
 plt.xlabel("Number of Pixels/Elements")
 
 plt.show()
+
+# Just seeing if PyCUDA was installed
+import pycuda.gpuarray as gpuarray
+import pycuda.driver as cuda
+import pycuda.autoinit
+import numpy
+
+a_gpu = gpuarray.to_gpu(numpy.random.randn(4,4).astype(numpy.float32))
+a_doubled = (a_gpu*a_gpu).get()
+print(a_doubled)
+print(a_gpu)
