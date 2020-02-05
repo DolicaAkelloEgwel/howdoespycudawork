@@ -2,7 +2,6 @@ import cupy as cp
 import numpy as np
 import time
 from matplotlib import pyplot as plt
-import pycuda.gpuarray as gpuarray
 
 # Create a function for timing imaging-related operations
 def cool_timer(func, lib, size, num_arrs):
@@ -57,15 +56,14 @@ for lib in [cp, np]:
         results[lib][add_arrays].append(total_add / 10)
         results[lib][background_correction_test].append(total_bc / 10)
 
-speed_up = dict()
+labels = {add_arrays: "Add Arrays", background_correction_test: "Background Correction", }
 
 # Determine the speed up by diving numpy time by gpu time
 for func in funcs:
-    speed_up[func] = np.divide(results[np][func], results[cp][func])
+    speed_up = np.divide(results[np][func], results[cp][func])
+    plt.plot(speed_up,label=labels[func], marker=".")
 
 # Plot speed up
-plt.plot(speed_up[background_correction_test],label="Background Correction", marker=".")
-plt.plot(speed_up[add_arrays],label="Add Arrays", marker= ".")
 plt.xticks(range(len(total_pixels)), total_pixels)
 plt.legend()
 plt.xlabel("Number of Elements")
