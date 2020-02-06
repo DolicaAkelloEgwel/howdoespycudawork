@@ -172,7 +172,7 @@ plt.ylabel("Avg np Time / Avg cp Time")
 ## Plot speed-up for pycuda
 ax = plt.subplot(2, 2, 4)
 plt.title("Speed Boost Obtained From Using cupy Over numpy")
-ax.set_prop_cycle(color=["yellow", "pink"])
+ax.set_prop_cycle(color=["black", "yellow"])
 
 # Determine the speed up by diving numpy time by gpu time and plot
 for func in function_names:
@@ -183,7 +183,7 @@ for func in function_names:
 
 plt.xticks(range(len(total_pixels)), total_pixels)
 plt.legend()
+plt.xlabel("Number of Pixels/Elements")
 plt.ylabel("Avg np Time / Avg pycuda Time")
-
 
 plt.show()
