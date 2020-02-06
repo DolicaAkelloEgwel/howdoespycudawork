@@ -1,18 +1,26 @@
 import cupy as cp
 import numpy as np
-import time
+import timeit
 from matplotlib import pyplot as plt
 import pycuda.gpuarray as gpuarray
 import pycuda.driver as cuda
 import pycuda.autoinit
 
+MINIMUM_PIXEL_VALUE = 1e-9
+MAXIMUM_PIXEL_VALUE = 1e9
+
 
 class ImagingTester:
-    def __init__(self):
-        self.arrays = None
+    def __init__(self, size):
+        self.create_arrays(size)
 
-    def create_arrays(self, num_arrays, size_tuple):
-        self.arrays = [np.random.rand(*size_tuple) for _ in range(num_arrays)]
+    def create_arrays(self, size_tuple):
+        self.arrays = [
+            np.random.uniform(
+                low=MINIMUM_PIXEL_VALUE, high=MAXIMUM_PIXEL_VALUE, size=size_tuple
+            )
+            for _ in range(3)
+        ]
 
     def add_arrays(self):
         pass
@@ -22,61 +30,59 @@ class ImagingTester:
 
 
 class NumpyImplementation(ImagingTester):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, size):
+        super().__init__(size)
+        self._send_arrays_to_gpu()
 
     def _send_arrays_to_gpu(self):
         pass
 
-    def add_arrays(self):
-        np.add(*self.arrays)
+    def add_arrays(self, arr1, arr2):
+        np.add(arr1, arr2)
 
-    def background_correction(self):
-        np.subtract(self.arrays[0], self.arrays[1], out=self.arrays[0])
-        np.subtract(self.arrays[2], self.arrays[1], out=self.arrays[2])
-        np.true_divide(self.arrays[0], self.arrays[2], out=self.arrays[0])
+    def background_correction(self, data, dark, flat):
+        np.subtract(data, dark, out=data)
+        np.subtract(flat, dark, out=flat)
+        np.true_divide(data, flat, out=data)
 
 
 class CupyImplementation(ImagingTester):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, size):
+        super().__init__(size)
+        self._send_arrays_to_gpu()
 
     def _send_arrays_to_gpu(self):
         self.arrays = [cp.asarray(np_arr) for np_arr in self.arrays]
 
-    def add_arrays(self):
-        cp.add(*self.arrays)
+    def add_arrays(self, arr1, arr2):
+        cp.add(arr1, arr2)
 
-    def background_correction(self):
-        cp.subtract(self.arrays[0], self.arrays[1], out=self.arrays[0])
-        cp.subtract(self.arrays[2], self.arrays[1], out=self.arrays[2])
-        cp.true_divide(self.arrays[0], self.arrays[2], out=self.arrays[0])
+    def background_correction(self, data, dark, flat):
+        cp.subtract(data, dark, out=data)
+        cp.subtract(flat, dark, out=flat)
+        cp.true_divide(data, flat, out=data)
 
 
 class PyCudaImplementation(ImagingTester):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, size):
+        super().__init__(size)
+        self._send_arrays_to_gpu()
 
     def _send_arrays_to_gpu(self):
         self.arrays = [gpuarray.to_gpu(np_arr) for np_arr in self.arrays]
 
-    def add_arrays(self):
-        self.arrays[0] + self.arrays[1]
+    def add_arrays(self, arr1, arr2):
+        arr1 + arr2
 
-    def background_correction(self):
+    def background_correction(self, data, dark, flat):
         self.arrays[0] - self.arrays[1]
         self.arrays[2] - self.arrays[1]
         self.arrays[0] / self.arrays[2]
 
 
 # Create a function for timing imaging-related operations
-def cool_timer(imaging_obj, size, num_arrs, func):
-    imaging_obj.create_arrays(num_arrs, size)
-    imaging_obj._send_arrays_to_gpu()
-    start = time.time()
-    func()
-    end = time.time()
-    return end - start
+def cool_timer(imaging_obj, func):
+    return timeit.timeit(func, number=20)
 
 
 # Create lists of array sizes and the total number of pixels/elements
@@ -87,18 +93,18 @@ array_sizes = [
     (1000, 1000),
     (1000, 2000),
     (2000, 2000),
+    (2500, 2500),
+    (3000, 3000),
 ]
 total_pixels = [x[0] * x[1] for x in array_sizes]
 
 # Create a dictionary for storing the run results
-implementations = [CupyImplementation, NumpyImplementation, PyCudaImplementation]
+implementations = [PyCudaImplementation, NumpyImplementation, CupyImplementation]
 results = {impl: dict() for impl in implementations}
 function_names = ["Add Arrays", "Background Correction"]
 
 # Loop through the different libraries
 for ExecutionClass in implementations:
-
-    imaging_obj = ExecutionClass()
 
     # Create empty lists for the results
     results[ExecutionClass]["Add Arrays"] = []
@@ -108,18 +114,22 @@ for ExecutionClass in implementations:
     for size in array_sizes:
 
         total_add = 0
-        total_bc = 0
+        total_bc = 1
+
+        imaging_obj = ExecutionClass(size)
 
         # Run the functions for the current array size 10 times
-        for _ in range(10):
-            total_add += cool_timer(imaging_obj, size, 2, imaging_obj.add_arrays)
-            total_bc += cool_timer(
-                imaging_obj, size, 3, imaging_obj.background_correction
-            )
+        total_add = cool_timer(
+            imaging_obj, lambda: imaging_obj.add_arrays(*imaging_obj.arrays[:2])
+        )
+        total_bc = cool_timer(
+            imaging_obj, lambda: imaging_obj.background_correction(*imaging_obj.arrays)
+        )
 
+        assert size == imaging_obj.arrays[0].shape
         # Compute the average speed for the 10 runs
-        results[ExecutionClass]["Add Arrays"].append(total_add / 10)
-        results[ExecutionClass]["Background Correction"].append(total_bc / 10)
+        results[ExecutionClass]["Add Arrays"].append(total_add)
+        results[ExecutionClass]["Background Correction"].append(total_bc)
 
 library_labels = {
     CupyImplementation: "cupy",
