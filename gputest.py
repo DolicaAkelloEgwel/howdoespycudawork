@@ -32,10 +32,6 @@ class ImagingTester:
 class NumpyImplementation(ImagingTester):
     def __init__(self, size):
         super().__init__(size)
-        self._send_arrays_to_gpu()
-
-    def _send_arrays_to_gpu(self):
-        pass
 
     def add_arrays(self, arr1, arr2):
         np.add(arr1, arr2)
@@ -181,7 +177,7 @@ plt.ylabel("Avg np Time / Avg cp Time")
 
 ## Plot speed-up for pycuda
 ax = plt.subplot(2, 2, 4)
-plt.title("Speed Boost Obtained From Using cupy Over numpy")
+plt.title("Speed Boost Obtained From Using pycuda Over numpy")
 ax.set_prop_cycle(color=["black", "yellow"])
 
 # Determine the speed up by diving numpy time by gpu time and plot
