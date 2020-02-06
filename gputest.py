@@ -25,6 +25,9 @@ class NumpyImplementation(ImagingTester):
     def __init__(self):
         super().__init__()
 
+    def _send_arrays_to_gpu(self):
+        pass
+
     def add_arrays(self):
         return np.add(*self.arrays)
 
@@ -43,15 +46,13 @@ class CupyImplementation(ImagingTester):
         self.arrays = [cp.asarray(np_arr) for np_arr in self.arrays]
 
     def add_arrays(self):
-        self._send_arrays_to_gpu()
-        return cp.add(*self.arrays).get()
+        return cp.add(*self.arrays)
 
     def background_correction(self):
-        self._send_arrays_to_gpu()
         cp.subtract(self.arrays[0], self.arrays[1], self.arrays[0])
         cp.subtract(self.arrays[2], self.arrays[1], out=self.arrays[2])
         cp.true_divide(self.arrays[0], self.arrays[2], out=self.arrays[0])
-        return self.arrays[0].get()
+        return self.arrays[0]
 
 
 class PyCudaImplementation(ImagingTester):
@@ -62,17 +63,18 @@ class PyCudaImplementation(ImagingTester):
         self.arrays = [gpuarray.to_gpu(np_arr) for np_arr in self.arrays]
 
     def add_arrays(self):
-        self._send_arrays_to_gpu()
-        return (self.arrays[0] + self.arrays[1]).get()
+        return self.arrays[0] + self.arrays[1]
 
     def background_correction(self):
-        self._send_arrays_to_gpu()
-        return
+        self.arrays[0] - self.arrays[1]
+        self.arrays[2] - self.arrays[1]
+        return self.arrays[0] / self.arrays[2]
 
 
 # Create a function for timing imaging-related operations
 def cool_timer(imaging_obj, size, num_arrs, imaging_alg):
     imaging_obj.create_arrays(num_arrs, size)
+    imaging_obj._send_arrays_to_gpu()
     if imaging_alg == "Add Arrays":
         start = time.time()
         imaging_obj.add_arrays()
@@ -132,7 +134,7 @@ library_labels = {
 
 ## Plot adding times
 plt.subplot(2, 2, 1)
-plt.title("Average Time Taken To Add Two Arrays (Including Transfer)")
+plt.title("Average Time Taken To Add Two Arrays")
 
 for impl in implementations:
     plt.plot(results[impl]["Add Arrays"], label=library_labels[impl], marker=".")
@@ -144,7 +146,7 @@ plt.legend()
 
 ## Plot Background Correction Times
 plt.subplot(2, 2, 2)
-plt.title("Average Time Taken To Do Background Correction (Including Transfer)")
+plt.title("Average Time Taken To Do Background Correction")
 
 for impl in implementations:
     plt.plot(
@@ -157,7 +159,7 @@ plt.yscale("log")
 
 ## Plot speed-up
 ax = plt.subplot(2, 2, 3)
-plt.title("Speed UnBoost Obtained From Using cupy Over numpy (Including Transfer)")
+plt.title("Speed Boost Obtained From Using cupy Over numpy")
 ax.set_prop_cycle(color=["purple", "red"])
 
 # Determine the speed up by diving numpy time by gpu time and plot
