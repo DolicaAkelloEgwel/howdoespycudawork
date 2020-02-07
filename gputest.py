@@ -1,12 +1,11 @@
 import cupy as cp
 import numpy as np
-import timeit
 import time
 from matplotlib import pyplot as plt
 import pycuda.gpuarray as gpuarray
-import pycuda.driver as cuda
-import pycuda.autoinit
 from numba import jit
+import pycuda.driver as drv
+import pycuda.autoinit  # MUST BE IMPORTED FOR PYCUDA TIMING TO WORK
 
 MINIMUM_PIXEL_VALUE = 1e-9
 MAXIMUM_PIXEL_VALUE = 1e9
@@ -24,10 +23,10 @@ class ImagingTester:
             for _ in range(3)
         ]
 
-    def add_arrays(self):
+    def timed_add_arrays(self):
         pass
 
-    def background_correction(self):
+    def timed_background_correction(self):
         pass
 
 
@@ -35,13 +34,29 @@ class NumpyImplementation(ImagingTester):
     def __init__(self, size):
         super().__init__(size)
 
-    def add_arrays(self, arr1, arr2):
-        np.add(arr1, arr2)
+    def timed_add_arrays(self, reps):
+        arr1, arr2 = self.arrays[:2]
+        total_time = 0
+        for _ in range(reps):
+            start = time.time()
+            ###
+            np.add(arr1, arr2)
+            ###
+            total_time += time.time() - start
+        return total_time / reps
 
-    def background_correction(self, data, dark, flat):
-        np.subtract(data, dark, out=data)
-        np.subtract(flat, dark, out=flat)
-        np.true_divide(data, flat, out=data)
+    def timed_background_correction(self, reps):
+        data, dark, flat = self.arrays
+        total_time = 0
+        for _ in range(reps):
+            start = time.time()
+            ###
+            np.subtract(data, dark, out=data)
+            np.subtract(flat, dark, out=flat)
+            np.true_divide(data, flat, out=data)
+            ###
+            total_time += time.time() - start
+        return total_time / reps
 
 
 class CupyImplementation(ImagingTester):
@@ -52,13 +67,31 @@ class CupyImplementation(ImagingTester):
     def _send_arrays_to_gpu(self):
         self.arrays = [cp.asarray(np_arr) for np_arr in self.arrays]
 
-    def add_arrays(self, arr1, arr2):
-        cp.add(arr1, arr2)
+    def timed_add_arrays(self, runs):
+        total_time = 0
+        arr1, arr2 = self.arrays[:2]
+        for _ in range(runs):
+            start = time.time()
+            ###
+            cp.add(arr1, arr2)
+            ###
+            cp.cuda.runtime.deviceSynchronize()
+            total_time += time.time() - start
+        return total_time / runs
 
-    def background_correction(self, data, dark, flat):
-        cp.subtract(data, dark, out=data)
-        cp.subtract(flat, dark, out=flat)
-        cp.true_divide(data, flat, out=data)
+    def timed_background_correction(self, runs):
+        total_time = 0
+        data, dark, flat = self.arrays
+        for _ in range(runs):
+            start = time.time()
+            ###
+            cp.subtract(data, dark, out=data)
+            cp.subtract(flat, dark, out=flat)
+            cp.true_divide(data, flat, out=data)
+            ###
+            cp.cuda.runtime.deviceSynchronize()
+            total_time += time.time() - start
+        return total_time / runs
 
 
 class PyCudaImplementation(ImagingTester):
@@ -69,13 +102,37 @@ class PyCudaImplementation(ImagingTester):
     def _send_arrays_to_gpu(self):
         self.arrays = [gpuarray.to_gpu(np_arr) for np_arr in self.arrays]
 
-    def add_arrays(self, arr1, arr2):
-        arr1 + arr2
+    def timed_add_arrays(self, runs):
+        total_time = 0
+        arr1, arr2 = self.arrays[:2]
+        start = drv.Event()
+        end = drv.Event()
+        for _ in range(runs):
+            start.record()
+            ###
+            arr1 + arr2
+            ###
+            end.record()
+            end.synchronize()
+            total_time += start.time_till(end) * 1e3
+        return total_time / runs
 
-    def background_correction(self, data, dark, flat):
-        data -= dark
-        flat -= dark
-        data /= flat
+    def timed_background_correction(self, runs):
+        total_time = 0
+        data, dark, flat = self.arrays
+        start = drv.Event()
+        end = drv.Event()
+        for _ in range(runs):
+            start.record()
+            ###
+            data -= dark
+            flat -= dark
+            data /= flat
+            ###
+            end.record()
+            end.synchronize()
+            total_time += start.time_till(end) * 1e3
+        return total_time / runs
 
 
 class NumbaImplementation(ImagingTester):
@@ -83,22 +140,20 @@ class NumbaImplementation(ImagingTester):
         super().__init__(size)
 
     @staticmethod
-    @jit("void(float64[:,:,:],float64[:,:,:])", nopython=True)
-    def add_arrays(arr1, arr2):
+    @jit("void(float64[:,:],float64[:,:])", nopython=True)
+    def timed_add_arrays(arr1, arr2):
         for i in range(len(arr1)):
             for j in range(len(arr1[0])):
-                for k in range(len(arr1[0][0])):
-                    arr1[i][j][k] += arr2[i][j][k]
+                arr1[i][j] += arr2[i][j]
 
     @staticmethod
-    @jit("void(float64[:,:,:],float64[:,:,:],float64[:,:,:])", nopython=True)
-    def background_correction(data, dark, flat):
+    @jit("void(float64[:,:],float64[:,:],float64[:,:])", nopython=True)
+    def timed_background_correction(data, dark, flat):
         for i in range(len(data)):
             for j in range(len(data[0])):
-                for k in range(len(data[0][0])):
-                    data[i][j][k] -= dark[i][j][k]
-                    flat[i][j][k] -= dark[i][j][k]
-                    data[i][j][k] /= flat[i][j][k]
+                data[i][j] -= dark[i][j]
+                flat[i][j] -= dark[i][j]
+                data[i][j] /= flat[i][j]
 
 
 # Create a function for timing imaging-related operations
@@ -106,23 +161,24 @@ def cool_timer(func):
     total_time = 0
     total_runs = 20
     for _ in range(total_runs):
-        time.time()
+        cp.cuda.runtime.deviceSynchronize()
+        start = time.time()
         func()
         cp.cuda.runtime.deviceSynchronize()
-        total_time += time.time()
+        total_time += time.time() - start
     return total_time / total_runs
 
 
 # Create lists of array sizes and the total number of pixels/elements
 array_sizes = [
-    (10, 100),
-    (100, 100),
-    (100, 1000),
-    (1000, 1000),
-    (2000, 2000),
-    (2500, 2500),
+    (10, 100, 10),
+    (100, 100, 10),
+    (100, 1000, 10),
+    (1000, 1000, 10),
+    (2000, 2000, 10),
+    (2500, 2500, 10),
 ]
-total_pixels = [x * y for x, y in array_sizes]
+total_pixels = [x * y * z for x, y, z in array_sizes]
 
 # Create a dictionary for storing the run results
 implementations = [
@@ -146,8 +202,6 @@ for ExecutionClass in implementations:
     results[ExecutionClass]["Add Arrays"] = []
     results[ExecutionClass]["Background Correction"] = []
 
-    imaging_obj = None
-
     # Loop through the different array sizes
     for size in array_sizes:
 
@@ -156,16 +210,11 @@ for ExecutionClass in implementations:
 
         imaging_obj = ExecutionClass(size)
 
-        # Run the functions for the current array size 10 times
-        total_add = cool_timer(lambda: imaging_obj.add_arrays(*imaging_obj.arrays[:2]))
-        total_bc = cool_timer(
-            lambda: imaging_obj.background_correction(*imaging_obj.arrays)
-        )
+        avg_add = imaging_obj.timed_add_arrays(20)
+        avg_bc = imaging_obj.timed_background_correction(20)
 
-        assert size == imaging_obj.arrays[0].shape
-
-        results[ExecutionClass]["Add Arrays"].append(total_add)
-        results[ExecutionClass]["Background Correction"].append(total_bc)
+        results[ExecutionClass]["Add Arrays"].append(avg_add)
+        results[ExecutionClass]["Background Correction"].append(avg_bc)
 
         print(
             "Used bytes:", mempool.used_bytes(), "Total bytes:", mempool.total_bytes()
@@ -190,7 +239,7 @@ for impl in implementations:
 
 plt.ylabel("Time Taken")
 plt.xticks(range(len(total_pixels)), total_pixels)
-# plt.yscale("log")
+plt.yscale("log")
 plt.legend()
 
 ## Plot Background Correction Times
@@ -204,7 +253,7 @@ for impl in implementations:
 
 plt.ylabel("Time Taken")
 plt.xticks(range(len(total_pixels)), total_pixels)
-# plt.yscale("log")
+plt.yscale("log")
 plt.xlabel("Number of Pixels/Elements")
 
 ## Plot speed-up for cupy
