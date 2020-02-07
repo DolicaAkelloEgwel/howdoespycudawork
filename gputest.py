@@ -82,14 +82,14 @@ class NumbaImplementation(ImagingTester):
         super().__init__(size)
 
     @staticmethod
-    @jit("void(float64[:,:],float64[:,:])")
+    @jit("void(float64[:,:],float64[:,:])", nopython=True)
     def add_arrays(arr1, arr2):
         for i in range(len(arr1)):
             for j in range(len(arr1[0])):
                 arr1[i][j] += arr2[i][j]
 
     @staticmethod
-    @jit("void(float64[:,:],float64[:,:],float64[:,:])")
+    @jit("void(float64[:,:],float64[:,:],float64[:,:])", nopython=True)
     def background_correction(data, dark, flat):
         for i in range(len(data)):
             for j in range(len(data[0])):
@@ -113,6 +113,7 @@ array_sizes = [
     (2000, 2000),
     (2500, 2500),
     (3000, 3000),
+    (4000, 4000),
 ]
 total_pixels = [x[0] * x[1] for x in array_sizes]
 
