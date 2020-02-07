@@ -100,6 +100,7 @@ class NumbaImplementation(ImagingTester):
 
 # Create a function for timing imaging-related operations
 def cool_timer(imaging_obj, func):
+    cp.cuda.runtime.deviceSynchronize()
     return timeit.timeit(func, number=20)
 
 
@@ -220,5 +221,7 @@ plt.xticks(range(len(total_pixels)), total_pixels)
 plt.legend()
 plt.xlabel("Number of Pixels/Elements")
 plt.ylabel("Avg np Time / Avg pycuda Time")
+
+print(results[CupyImplementation]["Background Correction"])
 
 plt.show()
