@@ -171,12 +171,11 @@ def cool_timer(func):
 
 # Create lists of array sizes and the total number of pixels/elements
 array_sizes = [
-    (10, 100, 10),
-    (100, 100, 10),
-    (100, 1000, 10),
-    (1000, 1000, 10),
-    (2000, 2000, 10),
-    (2500, 2500, 10),
+    (10, 100, 500),
+    (100, 100, 500),
+    (100, 1000, 500),
+    (1000, 1000, 500),
+    (1500, 1500, 500),
 ]
 total_pixels = [x * y * z for x, y, z in array_sizes]
 
@@ -208,10 +207,17 @@ for ExecutionClass in implementations:
         total_add = 0
         total_bc = 1
 
-        imaging_obj = ExecutionClass(size)
+        try:
 
-        avg_add = imaging_obj.timed_add_arrays(20)
-        avg_bc = imaging_obj.timed_background_correction(20)
+            imaging_obj = ExecutionClass(size)
+
+            avg_add = imaging_obj.timed_add_arrays(20)
+            avg_bc = imaging_obj.timed_background_correction(20)
+
+        except cp.cuda.memory.OutOfMemoryError as e:
+            print(e)
+            print("Unable to make GPU arrays with size", size)
+            exit()
 
         results[ExecutionClass]["Add Arrays"].append(avg_add)
         results[ExecutionClass]["Background Correction"].append(avg_bc)
