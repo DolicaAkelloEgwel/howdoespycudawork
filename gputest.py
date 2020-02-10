@@ -2,7 +2,7 @@ import cupy as cp
 import numpy as np
 import time
 
-from cupy.cuda.stream import Event, get_elapsed_time
+from cupy.cuda.stream import Event
 from matplotlib import pyplot as plt
 import pycuda.gpuarray as gpuarray
 from numba import jit
@@ -241,7 +241,7 @@ def print_memory_metrics(ExecutionClass):
 
 
 with cp.cuda.Device(0):
-    mempool.set_limit(size=20 * 1024 ** 3)  # Not sure what this is doing
+    mempool.set_limit(fraction=1)
 
 # Loop through the different libraries
 for ExecutionClass in implementations:
@@ -271,6 +271,7 @@ for ExecutionClass in implementations:
         except (cp.cuda.memory.OutOfMemoryError, pycuda._driver.MemoryError) as e:
             print(e)
             print("Unable to make GPU arrays with size", size)
+            print_memory_metrics(ExecutionClass)
             break
 
         results[ExecutionClass]["Add Arrays"].append(avg_add)
