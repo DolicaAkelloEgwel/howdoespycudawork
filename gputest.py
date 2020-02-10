@@ -1,6 +1,8 @@
 import cupy as cp
 import numpy as np
 import time
+
+from cupy.cuda.stream import Event, get_elapsed_time
 from matplotlib import pyplot as plt
 import pycuda.gpuarray as gpuarray
 from numba import jit
@@ -62,36 +64,51 @@ class NumpyImplementation(ImagingTester):
 class CupyImplementation(ImagingTester):
     def __init__(self, size):
         super().__init__(size)
-        self._send_arrays_to_gpu()
 
     def _send_arrays_to_gpu(self):
-        self.arrays = [cp.asarray(np_arr) for np_arr in self.arrays]
+        cpu_arrays = self.arrays
+        self.arrays = [cp.empty(cpu_arrays[0].shape) for _ in range(len(cpu_arrays))]
+        for i in range(len(cpu_arrays)):
+            self.arrays[i].set(cpu_arrays[i])
+
+    def time_function(self, func):
+        start = time.time()
+        func()
+        cp.cuda.runtime.deviceSynchronize()
+        return time.time() - start
 
     def timed_add_arrays(self, runs):
         total_time = 0
+
+        transfer_time = self.time_function(self._send_arrays_to_gpu)
         arr1, arr2 = self.arrays[:2]
+
         for _ in range(runs):
-            start = time.time()
-            ###
-            cp.add(arr1, arr2)
-            ###
-            cp.cuda.runtime.deviceSynchronize()
-            total_time += time.time() - start
-        return total_time / runs
+            total_time += self.time_function(lambda: cp.add(arr1, arr2))
+
+        transfer_time += self.time_function(arr1.get)
+
+        return transfer_time + total_time / runs
 
     def timed_background_correction(self, runs):
         total_time = 0
+
+        transfer_time = self.time_function(self._send_arrays_to_gpu)
         data, dark, flat = self.arrays
-        for _ in range(runs):
-            start = time.time()
-            ###
+
+        def background_correction(data, dark, flat):
             cp.subtract(data, dark, out=data)
             cp.subtract(flat, dark, out=flat)
             cp.true_divide(data, flat, out=data)
-            ###
-            cp.cuda.runtime.deviceSynchronize()
-            total_time += time.time() - start
-        return total_time / runs
+
+        for _ in range(runs):
+            total_time += self.time_function(
+                lambda: background_correction(data, dark, flat)
+            )
+
+        transfer_time += self.time_function(data.get)
+
+        return transfer_time + total_time / runs
 
 
 class PyCudaImplementation(ImagingTester):
@@ -191,6 +208,12 @@ function_names = ["Add Arrays", "Background Correction"]
 
 mempool = cp.get_default_memory_pool()
 
+
+def clear_memory_pool(imaging_obj):
+    del imaging_obj
+    mempool.free_all_blocks()
+
+
 with cp.cuda.Device(0):
     mempool.set_limit(size=20 * 1024 ** 3)  # Not sure what this is doing
 
@@ -210,14 +233,17 @@ for ExecutionClass in implementations:
         try:
 
             imaging_obj = ExecutionClass(size)
-
             avg_add = imaging_obj.timed_add_arrays(20)
-            avg_bc = imaging_obj.timed_background_correction(20)
+            clear_memory_pool(imaging_obj)
 
-        except cp.cuda.memory.OutOfMemoryError as e:
+            imaging_obj = ExecutionClass(size)
+            avg_bc = imaging_obj.timed_background_correction(20)
+            mempool.free_all_blocks()
+
+        except (cp.cuda.memory.OutOfMemoryError, pycuda._driver.MemoryError) as e:
             print(e)
             print("Unable to make GPU arrays with size", size)
-            exit()
+            break
 
         results[ExecutionClass]["Add Arrays"].append(avg_add)
         results[ExecutionClass]["Background Correction"].append(avg_bc)
@@ -225,8 +251,6 @@ for ExecutionClass in implementations:
         print(
             "Used bytes:", mempool.used_bytes(), "Total bytes:", mempool.total_bytes()
         )
-        del imaging_obj
-        mempool.free_all_blocks()
 
 
 library_labels = {
@@ -270,7 +294,8 @@ ax.set_prop_cycle(color=["purple", "red"])
 # Determine the speed up by diving numpy time by gpu time and plot
 for func in function_names:
     speed_up = np.divide(
-        results[NumpyImplementation][func], results[CupyImplementation][func]
+        results[NumpyImplementation][func][: len(results[CupyImplementation][func])],
+        results[CupyImplementation][func],
     )
     plt.plot(speed_up, label=func, marker=".")
 
@@ -286,7 +311,8 @@ ax.set_prop_cycle(color=["black", "yellow"])
 # Determine the speed up by diving numpy time by gpu time and plot
 for func in function_names:
     speed_up = np.divide(
-        results[NumpyImplementation][func], results[PyCudaImplementation][func]
+        results[NumpyImplementation][func][: len(results[PyCudaImplementation][func])],
+        results[PyCudaImplementation][func],
     )
     plt.plot(speed_up, label=func, marker=".")
 
