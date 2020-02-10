@@ -21,7 +21,7 @@ class ImagingTester:
         self.cpu_arrays = [
             np.random.uniform(
                 low=MINIMUM_PIXEL_VALUE, high=MAXIMUM_PIXEL_VALUE, size=size_tuple
-            )
+            ).astype("float32")
             for _ in range(3)
         ]
 
@@ -86,6 +86,11 @@ class CupyImplementation(ImagingTester):
 
         transfer_time += self.time_function(arr1.get)
 
+        print(
+            "Transferring took %ss and operation took an average of %ss"
+            % (transfer_time, operation_time / runs)
+        )
+
         return transfer_time + operation_time / runs
 
     def timed_background_correction(self, runs):
@@ -105,6 +110,11 @@ class CupyImplementation(ImagingTester):
             )
 
         transfer_time += self.time_function(data.get)
+
+        print(
+            "Transferring took %ss and operation took an average of %ss"
+            % (transfer_time, operation_time / runs)
+        )
 
         return transfer_time + operation_time / runs
 
@@ -215,14 +225,25 @@ implementations = [
 results = {impl: dict() for impl in implementations}
 function_names = ["Add Arrays", "Background Correction"]
 
-mempool = cp.get_default_memory_pool()
+use_mempool = True
+
+if use_mempool:
+    mempool = cp.get_default_memory_pool()
+
+    with cp.cuda.Device(0):
+        mempool.set_limit(fraction=1)
+
+else:
+    cp.cuda.set_allocator(None)
+    cp.cuda.set_pinned_memory_allocator(None)
 
 
 def clear_memory_pool(imaging_obj):
 
     if isinstance(imaging_obj, CupyImplementation):
         del imaging_obj
-        mempool.free_all_blocks()
+        if use_mempool:
+            mempool.free_all_blocks()
     elif isinstance(imaging_obj, PyCudaImplementation):
         for gpu_array in imaging_obj.gpu_arrays:
             gpu_array.gpudata.free()
@@ -231,7 +252,7 @@ def clear_memory_pool(imaging_obj):
 
 def print_memory_metrics(ExecutionClass):
 
-    if ExecutionClass is CupyImplementation:
+    if ExecutionClass is CupyImplementation and use_mempool:
         print(
             "Used bytes:", mempool.used_bytes(), "/ Total bytes:", mempool.total_bytes()
         )
@@ -239,9 +260,6 @@ def print_memory_metrics(ExecutionClass):
         free, total = drv.mem_get_info()
         print("Used bytes:", total - free, "/ Total bytes:", total)
 
-
-with cp.cuda.Device(0):
-    mempool.set_limit(fraction=1)
 
 # Loop through the different libraries
 for ExecutionClass in implementations:
@@ -268,7 +286,7 @@ for ExecutionClass in implementations:
             print_memory_metrics(ExecutionClass)
             clear_memory_pool(imaging_obj)
 
-        except (cp.cuda.memory.OutOfMemoryError, pycuda._driver.MemoryError) as e:
+        except (cp.cuda.memory.OutOfMemoryError, drv.MemoryError) as e:
             print(e)
             print("Unable to make GPU arrays with size", size)
             print_memory_metrics(ExecutionClass)
