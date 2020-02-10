@@ -202,19 +202,6 @@ class NumbaImplementation(ImagingTester):
                 data[i][j] /= flat[i][j]
 
 
-# Create a function for timing imaging-related operations
-def cool_timer(func):
-    total_time = 0
-    total_runs = 20
-    for _ in range(total_runs):
-        cp.cuda.runtime.deviceSynchronize()
-        start = time.time()
-        func()
-        cp.cuda.runtime.deviceSynchronize()
-        total_time += time.time() - start
-    return total_time / total_runs
-
-
 # Create lists of array sizes and the total number of pixels/elements
 array_sizes = [
     (10, 100, 500),
