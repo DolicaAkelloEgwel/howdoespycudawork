@@ -149,6 +149,11 @@ class PyCudaImplementation(ImagingTester):
 
         transfer_time += self.time_function(arr1.get)
 
+        print(
+            "Transferring took %ss and operation took an average of %ss"
+            % (transfer_time, operation_time / runs)
+        )
+
         return transfer_time + operation_time / runs
 
     def timed_background_correction(self, runs):
@@ -167,6 +172,11 @@ class PyCudaImplementation(ImagingTester):
             )
 
         transfer_time += self.time_function(data.get)
+
+        print(
+            "Transferring took %ss and operation took an average of %ss"
+            % (transfer_time, operation_time / runs)
+        )
 
         return transfer_time + operation_time / runs
 
