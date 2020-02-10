@@ -18,7 +18,7 @@ class ImagingTester:
         self.create_arrays(size)
 
     def create_arrays(self, size_tuple):
-        self.arrays = [
+        self.cpu_arrays = [
             np.random.uniform(
                 low=MINIMUM_PIXEL_VALUE, high=MAXIMUM_PIXEL_VALUE, size=size_tuple
             )
@@ -37,7 +37,7 @@ class NumpyImplementation(ImagingTester):
         super().__init__(size)
 
     def timed_add_arrays(self, reps):
-        arr1, arr2 = self.arrays[:2]
+        arr1, arr2 = self.cpu_arrays[:2]
         total_time = 0
         for _ in range(reps):
             start = time.time()
@@ -48,7 +48,7 @@ class NumpyImplementation(ImagingTester):
         return total_time / reps
 
     def timed_background_correction(self, reps):
-        data, dark, flat = self.arrays
+        data, dark, flat = self.cpu_arrays
         total_time = 0
         for _ in range(reps):
             start = time.time()
@@ -66,35 +66,33 @@ class CupyImplementation(ImagingTester):
         super().__init__(size)
 
     def _send_arrays_to_gpu(self):
-        cpu_arrays = self.arrays
-        self.arrays = [cp.empty(cpu_arrays[0].shape) for _ in range(len(cpu_arrays))]
-        for i in range(len(cpu_arrays)):
-            self.arrays[i].set(cpu_arrays[i])
+        self.gpu_arrays = [cp.asarray(cpu_array) for cpu_array in self.cpu_arrays]
 
-    def time_function(self, func):
+    @staticmethod
+    def time_function(func):
         start = time.time()
         func()
         cp.cuda.runtime.deviceSynchronize()
         return time.time() - start
 
     def timed_add_arrays(self, runs):
-        total_time = 0
+        operation_time = 0
 
         transfer_time = self.time_function(self._send_arrays_to_gpu)
-        arr1, arr2 = self.arrays[:2]
+        arr1, arr2 = self.gpu_arrays[:2]
 
         for _ in range(runs):
-            total_time += self.time_function(lambda: cp.add(arr1, arr2))
+            operation_time += self.time_function(lambda: cp.add(arr1, arr2))
 
         transfer_time += self.time_function(arr1.get)
 
-        return transfer_time + total_time / runs
+        return transfer_time + operation_time / runs
 
     def timed_background_correction(self, runs):
-        total_time = 0
+        operation_time = 0
 
         transfer_time = self.time_function(self._send_arrays_to_gpu)
-        data, dark, flat = self.arrays
+        data, dark, flat = self.gpu_arrays
 
         def background_correction(data, dark, flat):
             cp.subtract(data, dark, out=data)
@@ -102,54 +100,65 @@ class CupyImplementation(ImagingTester):
             cp.true_divide(data, flat, out=data)
 
         for _ in range(runs):
-            total_time += self.time_function(
+            operation_time += self.time_function(
                 lambda: background_correction(data, dark, flat)
             )
 
         transfer_time += self.time_function(data.get)
 
-        return transfer_time + total_time / runs
+        return transfer_time + operation_time / runs
 
 
 class PyCudaImplementation(ImagingTester):
     def __init__(self, size):
         super().__init__(size)
-        self._send_arrays_to_gpu()
 
     def _send_arrays_to_gpu(self):
-        self.arrays = [gpuarray.to_gpu(np_arr) for np_arr in self.arrays]
+        self.gpu_arrays = [gpuarray.to_gpu(np_arr) for np_arr in self.cpu_arrays]
+
+    def time_function(self, func):
+        start = drv.Event()
+        end = drv.Event()
+        start.record()
+        start.synchronize()
+        func()
+        end.record()
+        end.synchronize()
+        return start.time_till(end) * 1e3
 
     def timed_add_arrays(self, runs):
-        total_time = 0
-        arr1, arr2 = self.arrays[:2]
-        start = drv.Event()
-        end = drv.Event()
+        operation_time = 0
+        transfer_time = self.time_function(self._send_arrays_to_gpu)
+        arr1, arr2 = self.gpu_arrays[:2]
+
+        def add_arrays(arr1, arr2):
+            arr1 += arr2
+
         for _ in range(runs):
-            start.record()
-            ###
-            arr1 + arr2
-            ###
-            end.record()
-            end.synchronize()
-            total_time += start.time_till(end) * 1e3
-        return total_time / runs
+            operation_time += self.time_function(lambda: add_arrays(arr1, arr2))
+
+        transfer_time += self.time_function(arr1.get)
+
+        return transfer_time + operation_time / runs
 
     def timed_background_correction(self, runs):
-        total_time = 0
-        data, dark, flat = self.arrays
-        start = drv.Event()
-        end = drv.Event()
-        for _ in range(runs):
-            start.record()
-            ###
+        operation_time = 0
+        transfer_time = self.time_function(self._send_arrays_to_gpu)
+        data, dark, flat = self.gpu_arrays
+
+        def background_correction(data, dark, flat):
             data -= dark
             flat -= dark
             data /= flat
-            ###
-            end.record()
-            end.synchronize()
-            total_time += start.time_till(end) * 1e3
-        return total_time / runs
+
+        for _ in range(runs):
+            operation_time += self.time_function(
+                lambda: background_correction(data, dark, flat)
+            )
+
+        transfer_time += self.time_function(data.get)
+
+        return transfer_time + operation_time / runs
 
 
 class NumbaImplementation(ImagingTester):
@@ -210,8 +219,25 @@ mempool = cp.get_default_memory_pool()
 
 
 def clear_memory_pool(imaging_obj):
-    del imaging_obj
-    mempool.free_all_blocks()
+
+    if isinstance(imaging_obj, CupyImplementation):
+        del imaging_obj
+        mempool.free_all_blocks()
+    elif isinstance(imaging_obj, PyCudaImplementation):
+        for gpu_array in imaging_obj.gpu_arrays:
+            gpu_array.gpudata.free()
+        del imaging_obj
+
+
+def print_memory_metrics(ExecutionClass):
+
+    if ExecutionClass is CupyImplementation:
+        print(
+            "Used bytes:", mempool.used_bytes(), "/ Total bytes:", mempool.total_bytes()
+        )
+    elif ExecutionClass is PyCudaImplementation:
+        free, total = drv.mem_get_info()
+        print("Used bytes:", total - free, "/ Total bytes:", total)
 
 
 with cp.cuda.Device(0):
@@ -234,11 +260,13 @@ for ExecutionClass in implementations:
 
             imaging_obj = ExecutionClass(size)
             avg_add = imaging_obj.timed_add_arrays(20)
+            print_memory_metrics(ExecutionClass)
             clear_memory_pool(imaging_obj)
 
             imaging_obj = ExecutionClass(size)
             avg_bc = imaging_obj.timed_background_correction(20)
-            mempool.free_all_blocks()
+            print_memory_metrics(ExecutionClass)
+            clear_memory_pool(imaging_obj)
 
         except (cp.cuda.memory.OutOfMemoryError, pycuda._driver.MemoryError) as e:
             print(e)
@@ -247,10 +275,6 @@ for ExecutionClass in implementations:
 
         results[ExecutionClass]["Add Arrays"].append(avg_add)
         results[ExecutionClass]["Background Correction"].append(avg_bc)
-
-        print(
-            "Used bytes:", mempool.used_bytes(), "Total bytes:", mempool.total_bytes()
-        )
 
 
 library_labels = {
@@ -322,5 +346,6 @@ plt.xlabel("Number of Pixels/Elements")
 plt.ylabel("Avg np Time / Avg pycuda Time")
 
 print(results[CupyImplementation]["Background Correction"])
+print(results[PyCudaImplementation]["Background Correction"])
 
 plt.show()
