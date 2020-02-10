@@ -287,11 +287,15 @@ for ExecutionClass in implementations:
         try:
 
             imaging_obj = ExecutionClass(size)
+            # warm up
+            imaging_obj.timed_add_arrays(1)
             avg_add = imaging_obj.timed_add_arrays(20)
             print_memory_metrics(ExecutionClass)
             clear_memory_pool(imaging_obj)
 
             imaging_obj = ExecutionClass(size)
+            # warm up
+            imaging_obj.timed_background_correction(1)
             avg_bc = imaging_obj.timed_background_correction(20)
             print_memory_metrics(ExecutionClass)
             clear_memory_pool(imaging_obj)
