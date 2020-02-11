@@ -5,60 +5,9 @@ import time
 from cupy.cuda.stream import Event
 from matplotlib import pyplot as plt
 import pycuda.gpuarray as gpuarray
-from numba import jit
 import pycuda.driver as drv
-import pycuda.autoinit  # MUST BE IMPORTED FOR PYCUDA TIMING TO WORK
 
-MINIMUM_PIXEL_VALUE = 1e-9
-MAXIMUM_PIXEL_VALUE = 1e9
-
-
-class ImagingTester:
-    def __init__(self, size):
-        self.create_arrays(size)
-
-    def create_arrays(self, size_tuple):
-        self.cpu_arrays = [
-            np.random.uniform(
-                low=MINIMUM_PIXEL_VALUE, high=MAXIMUM_PIXEL_VALUE, size=size_tuple
-            ).astype("float32")
-            for _ in range(3)
-        ]
-
-    def timed_add_arrays(self):
-        pass
-
-    def timed_background_correction(self):
-        pass
-
-
-class NumpyImplementation(ImagingTester):
-    def __init__(self, size):
-        super().__init__(size)
-
-    def timed_add_arrays(self, reps):
-        arr1, arr2 = self.cpu_arrays[:2]
-        total_time = 0
-        for _ in range(reps):
-            start = time.time()
-            ###
-            np.add(arr1, arr2)
-            ###
-            total_time += time.time() - start
-        return total_time / reps
-
-    def timed_background_correction(self, reps):
-        data, dark, flat = self.cpu_arrays
-        total_time = 0
-        for _ in range(reps):
-            start = time.time()
-            ###
-            np.subtract(data, dark, out=data)
-            np.subtract(flat, dark, out=flat)
-            np.true_divide(data, flat, out=data)
-            ###
-            total_time += time.time() - start
-        return total_time / reps
+from imagingtester import ImagingTester, NumpyImplementation
 
 
 class CupyImplementation(ImagingTester):
@@ -87,8 +36,8 @@ class CupyImplementation(ImagingTester):
         transfer_time += self.time_function(arr1.get)
 
         print(
-            "Transferring took %ss and operation took an average of %ss"
-            % (transfer_time, operation_time / runs)
+            "With cupy transferring arrays of size %s took %ss and adding arrays took an average of %ss"
+            % (self.cpu_arrays[0].shape, transfer_time, operation_time / runs)
         )
 
         return transfer_time + operation_time / runs
@@ -112,8 +61,8 @@ class CupyImplementation(ImagingTester):
         transfer_time += self.time_function(data.get)
 
         print(
-            "Transferring took %ss and operation took an average of %ss"
-            % (transfer_time, operation_time / runs)
+            "With cupy transferring arrays of size %s took %ss and background correction took an average of %ss"
+            % (self.cpu_arrays[0].shape, transfer_time, operation_time / runs)
         )
 
         return transfer_time + operation_time / runs
@@ -127,14 +76,12 @@ class PyCudaImplementation(ImagingTester):
         self.gpu_arrays = [gpuarray.to_gpu(np_arr) for np_arr in self.cpu_arrays]
 
     def time_function(self, func):
-        start = drv.Event()
-        end = drv.Event()
-        start.record()
-        start.synchronize()
+        drv.Context().synchronize()
+        start = time.time()
         func()
-        end.record()
-        end.synchronize()
-        return start.time_till(end) * 1e3
+        drv.Context().synchronize()
+        end = time.time()
+        return end - start
 
     def timed_add_arrays(self, runs):
         operation_time = 0
@@ -150,8 +97,8 @@ class PyCudaImplementation(ImagingTester):
         transfer_time += self.time_function(arr1.get)
 
         print(
-            "Transferring took %ss and operation took an average of %ss"
-            % (transfer_time, operation_time / runs)
+            "With pycuda transferring arrays of size %s took %ss and adding arrays took an average of %ss"
+            % (self.cpu_arrays[0].shape, transfer_time, operation_time / runs)
         )
 
         return transfer_time + operation_time / runs
@@ -174,32 +121,11 @@ class PyCudaImplementation(ImagingTester):
         transfer_time += self.time_function(data.get)
 
         print(
-            "Transferring took %ss and operation took an average of %ss"
-            % (transfer_time, operation_time / runs)
+            "Wth pycuda transferring arrays of size %s took %ss and operation took an average of %ss"
+            % (self.cpu_arrays[0].shape, transfer_time, operation_time / runs)
         )
 
         return transfer_time + operation_time / runs
-
-
-class NumbaImplementation(ImagingTester):
-    def __init__(self, size):
-        super().__init__(size)
-
-    @staticmethod
-    @jit("void(float64[:,:],float64[:,:])", nopython=True)
-    def timed_add_arrays(arr1, arr2):
-        for i in range(len(arr1)):
-            for j in range(len(arr1[0])):
-                arr1[i][j] += arr2[i][j]
-
-    @staticmethod
-    @jit("void(float64[:,:],float64[:,:],float64[:,:])", nopython=True)
-    def timed_background_correction(data, dark, flat):
-        for i in range(len(data)):
-            for j in range(len(data[0])):
-                data[i][j] -= dark[i][j]
-                flat[i][j] -= dark[i][j]
-                data[i][j] /= flat[i][j]
 
 
 # Create lists of array sizes and the total number of pixels/elements
@@ -213,12 +139,7 @@ array_sizes = [
 total_pixels = [x * y * z for x, y, z in array_sizes]
 
 # Create a dictionary for storing the run results
-implementations = [
-    CupyImplementation,
-    NumpyImplementation,
-    PyCudaImplementation,
-    # NumbaImplementation,
-]
+implementations = [CupyImplementation, NumpyImplementation, PyCudaImplementation]
 results = {impl: dict() for impl in implementations}
 function_names = ["Add Arrays", "Background Correction"]
 
