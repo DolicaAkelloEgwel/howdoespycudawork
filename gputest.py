@@ -6,6 +6,7 @@ from cupy.cuda.stream import Event
 from matplotlib import pyplot as plt
 import pycuda.gpuarray as gpuarray
 import pycuda.driver as drv
+import pycuda.autoinit
 
 from imagingtester import ImagingTester, NumpyImplementation, ARRAY_SIZES, TOTAL_PIXELS
 
