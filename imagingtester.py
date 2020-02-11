@@ -52,3 +52,13 @@ class NumpyImplementation(ImagingTester):
             ###
             total_time += time.time() - start
         return total_time / reps
+
+
+ARRAY_SIZES = [
+    (10, 100, 500),
+    (100, 100, 500),
+    (100, 1000, 500),
+    (1000, 1000, 500),
+    (1500, 1500, 500),
+]
+TOTAL_PIXELS = [x * y * z for x, y, z in ARRAY_SIZES]

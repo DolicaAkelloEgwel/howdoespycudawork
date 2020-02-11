@@ -7,7 +7,7 @@ from matplotlib import pyplot as plt
 import pycuda.gpuarray as gpuarray
 import pycuda.driver as drv
 
-from imagingtester import ImagingTester, NumpyImplementation
+from imagingtester import ImagingTester, NumpyImplementation, ARRAY_SIZES, TOTAL_PIXELS
 
 
 class CupyImplementation(ImagingTester):
@@ -76,10 +76,8 @@ class PyCudaImplementation(ImagingTester):
         self.gpu_arrays = [gpuarray.to_gpu(np_arr) for np_arr in self.cpu_arrays]
 
     def time_function(self, func):
-        drv.Context().synchronize()
         start = time.time()
         func()
-        drv.Context().synchronize()
         end = time.time()
         return end - start
 
@@ -127,16 +125,6 @@ class PyCudaImplementation(ImagingTester):
 
         return transfer_time + operation_time / runs
 
-
-# Create lists of array sizes and the total number of pixels/elements
-array_sizes = [
-    (10, 100, 500),
-    (100, 100, 500),
-    (100, 1000, 500),
-    (1000, 1000, 500),
-    (1500, 1500, 500),
-]
-total_pixels = [x * y * z for x, y, z in array_sizes]
 
 # Create a dictionary for storing the run results
 implementations = [CupyImplementation, NumpyImplementation, PyCudaImplementation]
@@ -187,10 +175,7 @@ for ExecutionClass in implementations:
     results[ExecutionClass]["Background Correction"] = []
 
     # Loop through the different array sizes
-    for size in array_sizes:
-
-        total_add = 0
-        total_bc = 1
+    for size in ARRAY_SIZES:
 
         try:
 
@@ -222,7 +207,6 @@ library_labels = {
     CupyImplementation: "cupy",
     NumpyImplementation: "numpy",
     PyCudaImplementation: "pycuda",
-    NumbaImplementation: "numba",
 }
 
 ## Plot adding times
@@ -233,7 +217,7 @@ for impl in implementations:
     plt.plot(results[impl]["Add Arrays"], label=library_labels[impl], marker=".")
 
 plt.ylabel("Time Taken")
-plt.xticks(range(len(total_pixels)), total_pixels)
+plt.xticks(range(len(TOTAL_PIXELS)), TOTAL_PIXELS)
 plt.yscale("log")
 plt.legend()
 
@@ -247,7 +231,7 @@ for impl in implementations:
     )
 
 plt.ylabel("Time Taken")
-plt.xticks(range(len(total_pixels)), total_pixels)
+plt.xticks(range(len(TOTAL_PIXELS)), TOTAL_PIXELS)
 plt.yscale("log")
 plt.xlabel("Number of Pixels/Elements")
 
@@ -264,7 +248,7 @@ for func in function_names:
     )
     plt.plot(speed_up, label=func, marker=".")
 
-plt.xticks(range(len(total_pixels)), total_pixels)
+plt.xticks(range(len(TOTAL_PIXELS)), TOTAL_PIXELS)
 plt.legend()
 plt.ylabel("Avg np Time / Avg cp Time")
 
@@ -281,7 +265,7 @@ for func in function_names:
     )
     plt.plot(speed_up, label=func, marker=".")
 
-plt.xticks(range(len(total_pixels)), total_pixels)
+plt.xticks(range(len(TOTAL_PIXELS)), TOTAL_PIXELS)
 plt.legend()
 plt.xlabel("Number of Pixels/Elements")
 plt.ylabel("Avg np Time / Avg pycuda Time")
