@@ -4,7 +4,13 @@ import numpy as np
 import time
 from matplotlib import pyplot as plt
 
-from imagingtester import ImagingTester, NumpyImplementation, ARRAY_SIZES, TOTAL_PIXELS
+from imagingtester import (
+    ImagingTester,
+    NumpyImplementation,
+    ARRAY_SIZES,
+    TOTAL_PIXELS,
+    MINIMUM_PIXEL_VALUE,
+)
 
 
 @vectorize(["float32(float32, float32)"], target="cuda")
@@ -18,7 +24,7 @@ def cuda_background_correction(data, dark, flat):
     flat -= dark
     if flat != 0:
         return data / flat
-    return data
+    return data / MINIMUM_PIXEL_VALUE
 
 
 @vectorize(["float32(float32, float32)"], nopython=True, target="parallel")
@@ -32,7 +38,7 @@ def parallel_background_correction(data, dark, flat):
     flat -= dark
     if flat != 0:
         return data / flat
-    return data
+    return data / MINIMUM_PIXEL_VALUE
 
 
 class CudaNumbaImplementation(ImagingTester):

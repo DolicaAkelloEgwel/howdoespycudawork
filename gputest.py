@@ -6,17 +6,42 @@ from cupy.cuda.stream import Event
 from matplotlib import pyplot as plt
 import pycuda.gpuarray as gpuarray
 import pycuda.driver as drv
-import pycuda.autoinit
+import pycuda.autoinit  # don't remove
 
-from imagingtester import ImagingTester, NumpyImplementation, ARRAY_SIZES, TOTAL_PIXELS
+from imagingtester import (
+    ImagingTester,
+    NumpyImplementation,
+    ARRAY_SIZES,
+    TOTAL_PIXELS,
+    MINIMUM_PIXEL_VALUE,
+    MAXIMUM_PIXEL_VALUE,
+)
 
 
 class CupyImplementation(ImagingTester):
     def __init__(self, size):
         super().__init__(size)
 
+    @staticmethod
+    def _create_pinned_memory(cpu_array):
+
+        mem = cp.cuda.alloc_pinned_memory(cpu_array.nbytes)
+        src = np.frombuffer(mem, cpu_array.dtype, cpu_array.size).reshape(
+            cpu_array.shape
+        )
+        src[...] = cpu_array
+        return src
+
     def _send_arrays_to_gpu(self):
-        self.gpu_arrays = [cp.asarray(cpu_array) for cpu_array in self.cpu_arrays]
+
+        self.gpu_arrays = []
+
+        for i in range(len(self.cpu_arrays)):
+            pinned_memory = self._create_pinned_memory(self.cpu_arrays[i])
+            array_stream = cp.cuda.Stream(non_blocking=True)
+            gpu_array = cp.empty(pinned_memory.shape, dtype="float32")
+            gpu_array.set(pinned_memory, stream=array_stream)
+            self.gpu_arrays.append(gpu_array)
 
     @staticmethod
     def time_function(func):
@@ -49,14 +74,18 @@ class CupyImplementation(ImagingTester):
         transfer_time = self.time_function(self._send_arrays_to_gpu)
         data, dark, flat = self.gpu_arrays
 
-        def background_correction(data, dark, flat):
+        def background_correction(data, dark, flat, clip_min, clip_max):
+            norm_divide = np.subtract(flat, dark)
+            norm_divide[norm_divide == 0] = clip_min
             cp.subtract(data, dark, out=data)
-            cp.subtract(flat, dark, out=flat)
-            cp.true_divide(data, flat, out=data)
+            cp.true_divide(data, norm_divide, out=data)
+            cp.clip(data, clip_min, clip_max, out=data)
 
         for _ in range(runs):
             operation_time += self.time_function(
-                lambda: background_correction(data, dark, flat)
+                lambda: background_correction(
+                    data, dark, flat, MINIMUM_PIXEL_VALUE, MAXIMUM_PIXEL_VALUE
+                )
             )
 
         transfer_time += self.time_function(data.get)
@@ -108,6 +137,7 @@ class PyCudaImplementation(ImagingTester):
         data, dark, flat = self.gpu_arrays
 
         def background_correction(data, dark, flat):
+            norm_divide = flat - dark
             data -= dark
             flat -= dark
             data /= flat

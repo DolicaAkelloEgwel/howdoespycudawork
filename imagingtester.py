@@ -18,10 +18,10 @@ class ImagingTester:
             for _ in range(3)
         ]
 
-    def timed_add_arrays(self):
+    def timed_add_arrays(self, runs):
         pass
 
-    def timed_background_correction(self):
+    def timed_background_correction(self, runs):
         pass
 
 
@@ -46,9 +46,11 @@ class NumpyImplementation(ImagingTester):
         for _ in range(reps):
             start = time.time()
             ###
+            norm_divide = np.subtract(flat, dark)
+            norm_divide[norm_divide == 0] = MINIMUM_PIXEL_VALUE
             np.subtract(data, dark, out=data)
-            np.subtract(flat, dark, out=flat)
-            np.true_divide(data, flat, out=data)
+            np.true_divide(data, norm_divide, out=data)
+            np.clip(data, MINIMUM_PIXEL_VALUE, MAXIMUM_PIXEL_VALUE, out=data)
             ###
             total_time += time.time() - start
         return total_time / reps
