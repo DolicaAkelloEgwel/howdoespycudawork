@@ -1,22 +1,38 @@
-import time
-
 import numpy as np
 
 MINIMUM_PIXEL_VALUE = 1e-9
 MAXIMUM_PIXEL_VALUE = 1e9
 
+ARRAY_SIZES = [
+    (10, 100, 1000),
+    (100, 100, 1000),
+    (100, 1000, 1000),
+    (1000, 1000, 1000),
+    (1500, 1500, 1000),
+]
+TOTAL_PIXELS = [x * y * z for x, y, z in ARRAY_SIZES]
+
+
+def create_arrays(size_tuple, dtype):
+    return [
+        np.random.uniform(
+            low=MINIMUM_PIXEL_VALUE, high=MAXIMUM_PIXEL_VALUE, size=size_tuple
+        ).astype(dtype)
+        for _ in range(3)
+    ]
+
 
 class ImagingTester:
-    def __init__(self, size):
-        self.create_arrays(size)
+    def __init__(self, size, dtype):
+        self.cpu_arrays = None
+        self.lib_name = None
+        self.create_arrays(size, dtype)
 
-    def create_arrays(self, size_tuple):
-        self.cpu_arrays = [
-            np.random.uniform(
-                low=MINIMUM_PIXEL_VALUE, high=MAXIMUM_PIXEL_VALUE, size=size_tuple
-            ).astype("float32")
-            for _ in range(3)
-        ]
+    def create_arrays(self, size_tuple, dtype):
+        self.cpu_arrays = create_arrays(size_tuple, dtype)
+
+    def warm_up(self):
+        pass
 
     def timed_add_arrays(self, runs):
         pass
@@ -24,43 +40,36 @@ class ImagingTester:
     def timed_background_correction(self, runs):
         pass
 
-
-class NumpyImplementation(ImagingTester):
-    def __init__(self, size):
-        super().__init__(size)
-
-    def timed_add_arrays(self, reps):
-        arr1, arr2 = self.cpu_arrays[:2]
-        total_time = 0
-        for _ in range(reps):
-            start = time.time()
-            ###
-            np.add(arr1, arr2)
-            ###
-            total_time += time.time() - start
-        return total_time / reps
-
-    def timed_background_correction(self, reps):
-        data, dark, flat = self.cpu_arrays
-        total_time = 0
-        for _ in range(reps):
-            start = time.time()
-            ###
-            norm_divide = np.subtract(flat, dark)
-            norm_divide[norm_divide == 0] = MINIMUM_PIXEL_VALUE
-            np.subtract(data, dark, out=data)
-            np.true_divide(data, norm_divide, out=data)
-            np.clip(data, MINIMUM_PIXEL_VALUE, MAXIMUM_PIXEL_VALUE, out=data)
-            ###
-            total_time += time.time() - start
-        return total_time / reps
-
-
-ARRAY_SIZES = [
-    (10, 100, 500),
-    (100, 100, 500),
-    (100, 1000, 500),
-    (1000, 1000, 500),
-    (1500, 1500, 500),
-]
-TOTAL_PIXELS = [x * y * z for x, y, z in ARRAY_SIZES]
+    def print_operation_times(
+        self, operation_time, operation_name, runs, transfer_time
+    ):
+        """
+        Print the time spent doing performing a calculation and the time spent transferring arrays.
+        :param operation_name: The name of the imaging algorithm.
+        :param operation_time: The time the GPU took doing the calculations.
+        :param runs: The number of runs used to obtain the average operation time.
+        :param transfer_time: The time spent transferring the arrays to and from the GPU.
+        """
+        if transfer_time is not None:
+            print(
+                "With %s transferring arrays of size %s took %ss and %s took an average of %ss over %s runs."
+                % (
+                    self.lib_name,
+                    self.cpu_arrays[0].shape,
+                    transfer_time,
+                    operation_name,
+                    operation_time / runs,
+                    runs,
+                )
+            )
+        else:
+            print(
+                "With %s carrying out %s on arrays of size %s took an average of %ss over %s runs."
+                % (
+                    self.lib_name,
+                    operation_name,
+                    self.cpu_arrays[0].shape,
+                    operation_time / runs,
+                    runs,
+                )
+            )

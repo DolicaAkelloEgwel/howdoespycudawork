@@ -13,8 +13,8 @@ from imagingtester import (
 
 
 class CupyImplementation(ImagingTester):
-    def __init__(self, size):
-        super().__init__(size)
+    def __init__(self, size, dtype="float32"):
+        super().__init__(size, dtype)
         self.warm_up()
         self.lib_name = "cupy"
 
@@ -96,7 +96,7 @@ class CupyImplementation(ImagingTester):
             )
 
         transfer_time += self.time_function(self.gpu_arrays[0].get)
-        self.print_operation_times(operation_time, runs, transfer_time)
+        self.print_operation_times(operation_time, "adding", runs, transfer_time)
 
         return transfer_time + operation_time / runs
 
@@ -122,7 +122,9 @@ class CupyImplementation(ImagingTester):
             )
 
         transfer_time += self.time_function(data.get)
-        self.print_operation_times(operation_time, runs, transfer_time)
+        self.print_operation_times(
+            operation_time, "background correction", runs, transfer_time
+        )
 
         return transfer_time + operation_time / runs
 
