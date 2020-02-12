@@ -30,10 +30,17 @@ class CupyImplementation(ImagingTester):
         )
         self.add_arrays(*warm_up_arrays[:2])
 
+    def free_memory_pool(self):
+        """
+        Delete the existing GPU arrays so that successive calls to `_send_arrays_to_gpu` don't cause any problems.
+        """
+        del self.gpu_arrays
+        mempool.free_all_blocks()
+
     @staticmethod
     def _create_pinned_memory(cpu_array):
         """
-        Use pinned memory as opposed to simply calling.
+        Use pinned memory as opposed to `asarray`. This allegedly this makes transferring quicker.
         :param cpu_array: The numpy array.
         :return:
         """
@@ -76,7 +83,7 @@ class CupyImplementation(ImagingTester):
         :param arr1:
         :param arr2:
         """
-        arr1 = cp.add(arr1, arr2)
+        cp.add(arr1, arr2)
 
     def timed_add_arrays(self, runs):
         operation_time = 0
@@ -89,27 +96,9 @@ class CupyImplementation(ImagingTester):
             )
 
         transfer_time += self.time_function(self.gpu_arrays[0].get)
-
         self.print_operation_times(operation_time, runs, transfer_time)
 
         return transfer_time + operation_time / runs
-
-    def print_operation_times(self, operation_time, runs, transfer_time):
-        """
-        Print the time spent doing performing a calculation and the time spent transferring arrays.
-        :param operation_time: The time the GPU took doing the calculations.
-        :param runs: The number of runs used to obtain the average operation time.
-        :param transfer_time: The time spent transferring the arrays to and from the GPU.
-        """
-        print(
-            "With %s transferring arrays of size %s took %ss and adding arrays took an average of %ss"
-            % (
-                self.lib_name,
-                self.cpu_arrays[0].shape,
-                transfer_time,
-                operation_time / runs,
-            )
-        )
 
     @staticmethod
     def background_correction(data, dark, flat, clip_min, clip_max):
@@ -133,11 +122,7 @@ class CupyImplementation(ImagingTester):
             )
 
         transfer_time += self.time_function(data.get)
-
-        print(
-            "With cupy transferring arrays of size %s took %ss and background correction took an average of %ss"
-            % (self.cpu_arrays[0].shape, transfer_time, operation_time / runs)
-        )
+        self.print_operation_times(operation_time, runs, transfer_time)
 
         return transfer_time + operation_time / runs
 
@@ -147,17 +132,15 @@ with cp.cuda.Device(0):
     mempool.set_limit(fraction=1)  # Use the maximum GPU memory
 
 
-def clear_memory_pool(imaging_obj):
-
-    del imaging_obj
-    mempool.free_all_blocks()
-
-
 def print_memory_metrics():
-
+    """
+    Print some information about how much space is being used on the GPU.
+    :return:
+    """
     print("Used bytes:", mempool.used_bytes(), "/ Total bytes:", mempool.total_bytes())
 
 
+# Create empty arrays for benchmarking results
 add_arrays = []
 background_correction = []
 
@@ -166,13 +149,12 @@ for size in ARRAY_SIZES:
     try:
 
         imaging_obj = CupyImplementation(size)
-        avg_add = imaging_obj.timed_add_arrays(20)
-        clear_memory_pool(imaging_obj)
 
-        imaging_obj = CupyImplementation(size)
+        avg_add = imaging_obj.timed_add_arrays(20)
+        imaging_obj.free_memory_pool()
+
         avg_bc = imaging_obj.timed_background_correction(20)
-        print_memory_metrics()
-        clear_memory_pool(imaging_obj)
+        imaging_obj.free_memory_pool()
 
     except cp.cuda.memory.OutOfMemoryError as e:
         print(e)
