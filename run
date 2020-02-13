@@ -1,0 +1,10 @@
+#!/bin/bash
+
+mkdir -p results
+rm -r -f results/*
+python test_numpy.py
+python test_cupy.py
+python test_numba.py
+python test_pycuda.py
+
+python plot_results.py

@@ -12,6 +12,8 @@ ARRAY_SIZES = [
 ]
 TOTAL_PIXELS = [x * y * z for x, y, z in ARRAY_SIZES]
 
+N_RUNS = 20
+
 
 def create_arrays(size_tuple, dtype):
     return [
@@ -73,3 +75,8 @@ class ImagingTester:
                     runs,
                 )
             )
+
+
+def write_results_to_file(filename):
+    with open(filename, "w") as f:
+        pass

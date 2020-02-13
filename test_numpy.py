@@ -7,6 +7,7 @@ from imagingtester import (
     MINIMUM_PIXEL_VALUE,
     MAXIMUM_PIXEL_VALUE,
     ARRAY_SIZES,
+    N_RUNS,
 )
 
 
@@ -19,7 +20,8 @@ class NumpyImplementation(ImagingTester):
     def time_function(func):
         start = time.time()
         func()
-        return time.time() - start
+        end = time.time()
+        return end - start
 
     def timed_add_arrays(self, reps):
         total_time = 0
@@ -32,7 +34,7 @@ class NumpyImplementation(ImagingTester):
     @staticmethod
     def background_correction(dark, data, flat):
         norm_divide = np.subtract(flat, dark)
-        norm_divide[norm_divide <= 0] = MINIMUM_PIXEL_VALUE
+        norm_divide[norm_divide == 0] = MINIMUM_PIXEL_VALUE
         np.subtract(data, dark, out=data)
         np.true_divide(data, norm_divide, out=data)
         np.clip(data, MINIMUM_PIXEL_VALUE, MAXIMUM_PIXEL_VALUE, out=data)
@@ -57,8 +59,8 @@ for size in ARRAY_SIZES:
 
     imaging_obj = NumpyImplementation(size)
 
-    avg_add = imaging_obj.timed_add_arrays(20)
-    avg_bc = imaging_obj.timed_background_correction(20)
+    avg_add = imaging_obj.timed_add_arrays(N_RUNS)
+    avg_bc = imaging_obj.timed_background_correction(N_RUNS)
 
 
 print(add_arrays)
