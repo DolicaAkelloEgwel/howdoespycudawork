@@ -66,7 +66,5 @@ for size in ARRAY_SIZES:
     add_arrays.append(imaging_obj.timed_add_arrays(N_RUNS))
     background_correction.append(imaging_obj.timed_background_correction(N_RUNS))
 
-write_results_to_file("numpyadd", "numpy add", add_arrays)
-write_results_to_file(
-    "numpybackgroundcorrection", "numpy background correction", background_correction
-)
+write_results_to_file("numpy add", add_arrays)
+write_results_to_file("numpy background correction", background_correction)
