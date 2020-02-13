@@ -1,4 +1,4 @@
-from numba import vectorize
+from numba import vectorize, cuda
 import numba
 import time
 
@@ -16,14 +16,21 @@ from imagingtester import (
     SIZES_SUBSET,
 )
 
+LIB_NAME = "numba"
+
+PARALLEL_VECTORISE_MODE = "parallel vectorise"
+CUDA_VECTORISE_MODE = "cuda vectorise"
+CUDA_JIT_MODE = "cuda jit"
+MODES = [PARALLEL_VECTORISE_MODE, CUDA_VECTORISE_MODE, CUDA_JIT_MODE]
+
 
 @vectorize(["{0}({0},{0})".format(DTYPE)], target="cuda")
-def cuda_add_arrays(elem1, elem2):
+def cuda_vectorise_add_arrays(elem1, elem2):
     return elem1 + elem2
 
 
 @vectorize("{0}({0},{0},{0})".format(DTYPE), target="cuda")
-def cuda_background_correction(data, dark, flat):
+def cuda_vectorise_background_correction(data, dark, flat):
     data -= dark
     flat -= dark
     if flat > 0:
@@ -36,6 +43,33 @@ def cuda_background_correction(data, dark, flat):
     if data > MAXIMUM_PIXEL_VALUE:
         return MAXIMUM_PIXEL_VALUE
     return data
+
+
+@cuda.jit
+def cuda_jit_add_arrays(arr1, arr2):
+    pos_x, pos_y, pos_z = cuda.grid(3)
+
+    if pos_x < arr1.shape[0] and pos_y < arr1.shape[1] and pos_z < arr1.shape[2]:
+        arr1[pos_x][pos_y][pos_z] += arr2[pos_x][pos_y][pos_z]
+
+
+@cuda.jit
+def cuda_jit_background_correction(data, dark, flat):
+    i, j, k = cuda.grid(3)
+
+    if i < data.shape[0] and j < data.shape[1] and k < data.shape[2]:
+        data[i][j][k] -= dark[i][j][k]
+        flat[i][j][k] -= dark[i][j][k]
+
+        if flat[i][j][k] > 0:
+            data[i][j][k] /= flat[i][j][k]
+        else:
+            data[i][j][k] /= MINIMUM_PIXEL_VALUE
+
+        if data[i][j][k] < MINIMUM_PIXEL_VALUE:
+            data[i][j][k] = MINIMUM_PIXEL_VALUE
+        elif data[i][j][k] > MAXIMUM_PIXEL_VALUE:
+            data[i][j][k] = MAXIMUM_PIXEL_VALUE
 
 
 @vectorize(["{0}({0},{0})".format(DTYPE)], nopython=True, target="parallel")
@@ -59,18 +93,30 @@ def parallel_background_correction(data, dark, flat):
     return data
 
 
-class CudaNumbaImplementation(ImagingTester):
-    def __init__(self, size, dtype):
+class NumbaImplementation(ImagingTester):
+    def __init__(self, size, mode, dtype):
         super().__init__(size, dtype)
+
+        if mode == PARALLEL_VECTORISE_MODE:
+            self.add_arrays = parallel_add_arrays
+            self.background_correction = parallel_background_correction
+        elif mode == CUDA_VECTORISE_MODE:
+            self.add_arrays = cuda_vectorise_add_arrays
+            self.background_correction = cuda_vectorise_background_correction
+        elif mode == CUDA_JIT_MODE:
+            self.add_arrays = cuda_jit_add_arrays
+            self.background_correction = cuda_jit_background_correction
+
         self.warm_up()
+        self.lib_name = LIB_NAME
 
     def warm_up(self):
         """
         Give the CUDA functions a chance to compile.
         """
         warm_up_arrays = create_arrays((1, 1, 1), self.dtype)
-        cuda_add_arrays(*warm_up_arrays[:2])
-        cuda_background_correction(*warm_up_arrays)
+        cuda_vectorise_add_arrays(*warm_up_arrays[:2])
+        cuda_vectorise_background_correction(*warm_up_arrays)
 
     @staticmethod
     def time_function(func):
@@ -83,8 +129,9 @@ class CudaNumbaImplementation(ImagingTester):
 
         for _ in range(runs):
             total_time += self.time_function(
-                lambda: cuda_add_arrays(*self.cpu_arrays[:2])
+                lambda: self.add_arrays(*self.cpu_arrays[:2])
             )
+        self.print_operation_times(total_time, ADD_ARRAYS, runs)
         return total_time / runs
 
     def timed_background_correction(self, runs):
@@ -92,56 +139,13 @@ class CudaNumbaImplementation(ImagingTester):
 
         for _ in range(runs):
             total_time += self.time_function(
-                lambda: cuda_background_correction(*self.cpu_arrays)
+                lambda: self.background_correction(*self.cpu_arrays)
             )
+        self.print_operation_times(total_time, BACKGROUND_CORRECTION, runs)
         return total_time
 
 
-class ParallelNumbaImplementation(ImagingTester):
-    def __init__(self, size, dtype):
-        super().__init__(size, dtype)
-        self.warm_up()
-
-    def warm_up(self):
-        """
-        Give the CUDA functions a chance to compile.
-        """
-        warm_up_arrays = create_arrays((1, 1, 1), self.dtype)
-        parallel_add_arrays(*warm_up_arrays[:2])
-        parallel_background_correction(*warm_up_arrays)
-
-    def time_function(self, func):
-        start = time.time()
-        func()
-        return time.time() - start
-
-    def timed_add_arrays(self, runs):
-        total_time = 0
-
-        for _ in range(runs):
-            total_time += self.time_function(
-                lambda: parallel_add_arrays(*self.cpu_arrays[:2])
-            )
-        return total_time / runs
-
-    def timed_background_correction(self, runs):
-        total_time = 0
-
-        for _ in range(runs):
-            total_time += self.time_function(
-                lambda: parallel_background_correction(*self.cpu_arrays)
-            )
-        return total_time
-
-
-implementations = [ParallelNumbaImplementation, CudaNumbaImplementation]
-implementation_names = {
-    ParallelNumbaImplementation: "parallel numba",
-    CudaNumbaImplementation: "cuda numba",
-}
-results_values = {ParallelNumbaImplementation: dict(), CudaNumbaImplementation: dict()}
-
-for impl in [ParallelNumbaImplementation, CudaNumbaImplementation]:
+for mode in MODES:
 
     add_arrays = []
     background_correction = []
@@ -149,7 +153,7 @@ for impl in [ParallelNumbaImplementation, CudaNumbaImplementation]:
     for size in ARRAY_SIZES[:SIZES_SUBSET]:
 
         try:
-            imaging_obj = impl(size, DTYPE)
+            imaging_obj = NumbaImplementation(size, mode, DTYPE)
 
             avg_add = imaging_obj.timed_add_arrays(N_RUNS)
             avg_bc = imaging_obj.timed_background_correction(N_RUNS)
@@ -162,7 +166,7 @@ for impl in [ParallelNumbaImplementation, CudaNumbaImplementation]:
             print(e)
             break
 
-    write_results_to_file([implementation_names[impl], ADD_ARRAYS], add_arrays)
+    write_results_to_file([LIB_NAME, mode, ADD_ARRAYS], add_arrays)
     write_results_to_file(
-        [implementation_names[impl], BACKGROUND_CORRECTION], background_correction
+        [LIB_NAME, mode, BACKGROUND_CORRECTION], background_correction
     )
