@@ -6,11 +6,12 @@ from matplotlib import pyplot as plt
 
 from imagingtester import (
     ImagingTester,
-    NumpyImplementation,
     ARRAY_SIZES,
     TOTAL_PIXELS,
     MINIMUM_PIXEL_VALUE,
+    MAXIMUM_PIXEL_VALUE,
 )
+from test_numpy import NumpyImplementation
 
 
 @vectorize(["float32(float32, float32)"], target="cuda")
@@ -22,9 +23,16 @@ def cuda_add_arrays(elem1, elem2):
 def cuda_background_correction(data, dark, flat):
     data -= dark
     flat -= dark
-    if flat != 0:
-        return data / flat
-    return data / MINIMUM_PIXEL_VALUE
+    if flat > 0:
+        data /= flat
+    else:
+        data /= MINIMUM_PIXEL_VALUE
+
+    if data < MINIMUM_PIXEL_VALUE:
+        return MINIMUM_PIXEL_VALUE
+    if data > MAXIMUM_PIXEL_VALUE:
+        return MAXIMUM_PIXEL_VALUE
+    return data
 
 
 @vectorize(["float32(float32, float32)"], nopython=True, target="parallel")
@@ -36,9 +44,16 @@ def parallel_add_arrays(elem1, elem2):
 def parallel_background_correction(data, dark, flat):
     data -= dark
     flat -= dark
-    if flat != 0:
-        return data / flat
-    return data / MINIMUM_PIXEL_VALUE
+    if flat > 0:
+        data /= flat
+    else:
+        data /= MINIMUM_PIXEL_VALUE
+
+    if data < MINIMUM_PIXEL_VALUE:
+        return MINIMUM_PIXEL_VALUE
+    if data > MAXIMUM_PIXEL_VALUE:
+        return MAXIMUM_PIXEL_VALUE
+    return data
 
 
 class CudaNumbaImplementation(ImagingTester):
