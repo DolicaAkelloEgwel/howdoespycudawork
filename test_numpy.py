@@ -18,7 +18,7 @@ LIB_NAME = "numpy"
 class NumpyImplementation(ImagingTester):
     def __init__(self, size, dtype="float32"):
         super().__init__(size, dtype)
-        self.lib_name = "numpy"
+        self.lib_name = LIB_NAME
 
     @staticmethod
     def time_function(func):
