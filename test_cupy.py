@@ -12,6 +12,7 @@ from imagingtester import (
     write_results_to_file,
     N_RUNS,
     SIZES_SUBSET,
+    DTYPE,
 )
 
 LIB_NAME = "cupy"
@@ -169,7 +170,7 @@ for use_pinned_memory in [True, False]:
     for size in ARRAY_SIZES[:SIZES_SUBSET]:
         try:
 
-            imaging_obj = CupyImplementation(size, use_pinned_memory)
+            imaging_obj = CupyImplementation(size, use_pinned_memory, DTYPE)
 
             avg_add = imaging_obj.timed_add_arrays(N_RUNS)
             imaging_obj.free_memory_pool()
