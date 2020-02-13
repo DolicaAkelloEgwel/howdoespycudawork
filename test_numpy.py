@@ -9,6 +9,7 @@ from imagingtester import (
     ARRAY_SIZES,
     N_RUNS,
     write_results_to_file,
+    SIZES_SUBSET,
 )
 
 LIB_NAME = "numpy"
@@ -58,7 +59,7 @@ class NumpyImplementation(ImagingTester):
 add_arrays = []
 background_correction = []
 
-for size in ARRAY_SIZES[:2]:
+for size in ARRAY_SIZES[:SIZES_SUBSET]:
 
     start = time.time()
     imaging_obj = NumpyImplementation(size)

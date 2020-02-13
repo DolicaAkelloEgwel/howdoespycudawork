@@ -12,7 +12,9 @@ ARRAY_SIZES = [
 ]
 TOTAL_PIXELS = [x * y * z for x, y, z in ARRAY_SIZES]
 
+# Set params here when seeing if the script works, making changes, etc
 N_RUNS = 2
+SIZES_SUBSET = 2
 
 RESULTS_DIR = "results/"
 SPACE_STRING = " "

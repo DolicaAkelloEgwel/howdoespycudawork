@@ -10,8 +10,8 @@ from imagingtester import (
     ARRAY_SIZES,
     create_arrays,
     write_results_to_file,
-    SPACE_STRING,
     N_RUNS,
+    SIZES_SUBSET,
 )
 
 LIB_NAME = "cupy"
@@ -27,7 +27,7 @@ class CupyImplementation(ImagingTester):
             self._send_arrays_to_gpu = self._send_arrays_to_gpu_without_pinned_memory
 
         self.warm_up()
-        self.lib_name = "cupy"
+        self.lib_name = LIB_NAME
 
     def warm_up(self):
         """
@@ -91,7 +91,8 @@ class CupyImplementation(ImagingTester):
         start = time.time()
         func()
         cp.cuda.runtime.deviceSynchronize()
-        return time.time() - start
+        end = time.time()
+        return end - start
 
     @staticmethod
     def add_arrays(arr1, arr2):
@@ -146,15 +147,15 @@ class CupyImplementation(ImagingTester):
         return transfer_time + operation_time / runs
 
 
+# Use the maximum GPU memory
 mempool = cp.get_default_memory_pool()
 with cp.cuda.Device(0):
-    mempool.set_limit(fraction=1)  # Use the maximum GPU memory
+    mempool.set_limit(fraction=1)
 
 
 def print_memory_metrics():
     """
     Print some information about how much space is being used on the GPU.
-    :return:
     """
     print("Used bytes:", mempool.used_bytes(), "/ Total bytes:", mempool.total_bytes())
 
@@ -165,7 +166,7 @@ for use_pinned_memory in [True, False]:
     add_arrays = []
     background_correction = []
 
-    for size in ARRAY_SIZES:
+    for size in ARRAY_SIZES[:SIZES_SUBSET]:
         try:
 
             imaging_obj = CupyImplementation(size, use_pinned_memory)
