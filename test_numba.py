@@ -13,15 +13,16 @@ from imagingtester import (
     N_RUNS,
     DTYPE,
     create_arrays,
+    SIZES_SUBSET,
 )
 
 
-@vectorize(["float(float, float)"], target="cuda")
+@vectorize(["{0}({0},{0})".format(DTYPE)], target="cuda")
 def cuda_add_arrays(elem1, elem2):
     return elem1 + elem2
 
 
-@vectorize("float(float,float,float)", target="cuda")
+@vectorize("{0}({0},{0},{0})".format(DTYPE), target="cuda")
 def cuda_background_correction(data, dark, flat):
     data -= dark
     flat -= dark
@@ -37,12 +38,12 @@ def cuda_background_correction(data, dark, flat):
     return data
 
 
-@vectorize(["float(float, float)"], nopython=True, target="parallel")
+@vectorize(["{0}({0},{0})".format(DTYPE)], nopython=True, target="parallel")
 def parallel_add_arrays(elem1, elem2):
     return elem1 + elem2
 
 
-@vectorize("float(float,float,float)", nopython=True, target="parallel")
+@vectorize("{0}({0},{0},{0})".format(DTYPE), nopython=True, target="parallel")
 def parallel_background_correction(data, dark, flat):
     data -= dark
     flat -= dark
@@ -145,7 +146,7 @@ for impl in [ParallelNumbaImplementation, CudaNumbaImplementation]:
     add_arrays = []
     background_correction = []
 
-    for size in ARRAY_SIZES:
+    for size in ARRAY_SIZES[:SIZES_SUBSET]:
 
         try:
             imaging_obj = impl(size, DTYPE)

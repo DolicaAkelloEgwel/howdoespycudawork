@@ -1,11 +1,17 @@
 #!/bin/bash
 
 
-
+# Make a directory for results
 mkdir -p results
+# Remove any previous results
 rm -r -f results/*
+# Run numpy tests
 python test_numpy.py -runs="$1" -sizes_subset="$2" -dtype="$3" -printstuff="$4"
+# Run cupu tests
 python test_cupy.py -runs="$1" -sizes_subset="$2" -dtype="$3" -printstuff="$4"
-#python test_numba.py -runs="$1" -sizes_subset="$2" -dtype="$3" -printstuff="$4"
+#Run numba tests
+python test_numba.py -runs="$1" -sizes_subset="$2" -dtype="$3" -printstuff="$4"
+# Run pycuda tests
 #python test_pycuda.py -runs="$1" -sizes_subset="$2" -dtype="$3" -printstuff="$4"
+# Plot results
 #python plot_results.py
