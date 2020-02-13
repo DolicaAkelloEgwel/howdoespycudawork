@@ -13,7 +13,8 @@ from imagingtester import (
     N_RUNS,
     SIZES_SUBSET,
     DTYPE,
-    NO_PRINT)
+    NO_PRINT,
+)
 
 LIB_NAME = "cupy"
 
