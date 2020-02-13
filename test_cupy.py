@@ -35,7 +35,7 @@ class CupyImplementation(ImagingTester):
         Give CUDA an opportunity to compile these functions?
         """
         warm_up_arrays = [
-            cp.asarray(cpu_array) for cpu_array in create_arrays((1, 1, 1), "float32")
+            cp.asarray(cpu_array) for cpu_array in create_arrays((1, 1, 1), self.dtype)
         ]
         self.background_correction(
             *warm_up_arrays, MINIMUM_PIXEL_VALUE, MAXIMUM_PIXEL_VALUE
@@ -72,7 +72,7 @@ class CupyImplementation(ImagingTester):
         for i in range(len(self.cpu_arrays)):
             pinned_memory = self._create_pinned_memory(self.cpu_arrays[i])
             array_stream = cp.cuda.Stream(non_blocking=True)
-            gpu_array = cp.empty(pinned_memory.shape, dtype="float32")
+            gpu_array = cp.empty(pinned_memory.shape, dtype=self.dtype)
             gpu_array.set(pinned_memory, stream=array_stream)
             self.gpu_arrays.append(gpu_array)
 

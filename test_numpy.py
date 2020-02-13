@@ -11,6 +11,7 @@ from imagingtester import (
     write_results_to_file,
     SIZES_SUBSET,
     DTYPE,
+    print_array_creation_time,
 )
 
 LIB_NAME = "numpy"
@@ -65,7 +66,7 @@ for size in ARRAY_SIZES[:SIZES_SUBSET]:
     start = time.time()
     imaging_obj = NumpyImplementation(size, DTYPE)
     end = time.time()
-    print("Array creation time:", end - start)
+    print_array_creation_time(end - start)
 
     add_arrays.append(imaging_obj.timed_add_arrays(N_RUNS))
     background_correction.append(imaging_obj.timed_background_correction(N_RUNS))
