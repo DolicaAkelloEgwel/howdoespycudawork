@@ -9,7 +9,12 @@ from imagingtester import (
     MAXIMUM_PIXEL_VALUE,
     ARRAY_SIZES,
     create_arrays,
+    write_results_to_file,
+    SPACE_STRING,
+    N_RUNS,
 )
+
+LIB_NAME = "cupy"
 
 
 class CupyImplementation(ImagingTester):
@@ -154,29 +159,37 @@ def print_memory_metrics():
     print("Used bytes:", mempool.used_bytes(), "/ Total bytes:", mempool.total_bytes())
 
 
-# Create empty arrays for benchmarking results
-add_arrays = []
-background_correction = []
+for use_pinned_memory in [True, False]:
 
-for size in ARRAY_SIZES:
+    # Create empty arrays for benchmarking results
+    add_arrays = []
+    background_correction = []
 
-    try:
+    for size in ARRAY_SIZES:
+        try:
 
-        imaging_obj = CupyImplementation(size)
+            imaging_obj = CupyImplementation(size, use_pinned_memory)
 
-        avg_add = imaging_obj.timed_add_arrays(20)
-        imaging_obj.free_memory_pool()
+            avg_add = imaging_obj.timed_add_arrays(N_RUNS)
+            imaging_obj.free_memory_pool()
 
-        avg_bc = imaging_obj.timed_background_correction(20)
-        imaging_obj.free_memory_pool()
+            avg_bc = imaging_obj.timed_background_correction(N_RUNS)
+            imaging_obj.free_memory_pool()
 
-    except cp.cuda.memory.OutOfMemoryError as e:
-        print(e)
-        print("Unable to make GPU arrays with size", size)
-        break
+        except cp.cuda.memory.OutOfMemoryError as e:
+            print(e)
+            print("Unable to make GPU arrays with size", size)
+            break
 
-    add_arrays.append(avg_add)
-    background_correction.append(avg_bc)
+        add_arrays.append(avg_add)
+        background_correction.append(avg_bc)
 
-print(add_arrays)
-print(background_correction)
+    if use_pinned_memory:
+        memory_string = "with pinned memory"
+    else:
+        memory_string = "without pinned memory"
+
+    write_results_to_file([LIB_NAME, "add arrays", memory_string], add_arrays)
+    write_results_to_file(
+        [LIB_NAME, "background correction", memory_string], background_correction
+    )
