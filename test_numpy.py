@@ -11,6 +11,8 @@ from imagingtester import (
     write_results_to_file,
 )
 
+LIB_NAME = "numpy"
+
 
 class NumpyImplementation(ImagingTester):
     def __init__(self, size, dtype="float32"):
@@ -56,15 +58,15 @@ class NumpyImplementation(ImagingTester):
 add_arrays = []
 background_correction = []
 
-for size in ARRAY_SIZES:
+for size in ARRAY_SIZES[:2]:
 
     start = time.time()
     imaging_obj = NumpyImplementation(size)
     end = time.time()
-    print(end - start)
+    print("Array creation time", end - start)
 
     add_arrays.append(imaging_obj.timed_add_arrays(N_RUNS))
     background_correction.append(imaging_obj.timed_background_correction(N_RUNS))
 
-write_results_to_file("numpy add", add_arrays)
-write_results_to_file("numpy background correction", background_correction)
+write_results_to_file([LIB_NAME, "add arrays"], add_arrays)
+write_results_to_file([LIB_NAME, "background correction"], background_correction)

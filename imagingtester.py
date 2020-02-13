@@ -15,6 +15,9 @@ TOTAL_PIXELS = [x * y * z for x, y, z in ARRAY_SIZES]
 N_RUNS = 2
 
 RESULTS_DIR = "results/"
+SPACE_STRING = " "
+ADD_ARRAYS = "add arrays"
+BACKGROUND_CORRECTION = "background correction"
 
 
 def create_arrays(size_tuple, dtype):
@@ -79,8 +82,14 @@ class ImagingTester:
             )
 
 
-def write_results_to_file(name, results):
-    filename = name.strip()
+def write_results_to_file(name_list, results):
+    """
+    Write the timing results to a file. in the "results" directory.
+    :param name_list:
+    :param results:
+    """
+    name = SPACE_STRING.join(name_list)
+    filename = name.replace(" ", "_")
     with open(RESULTS_DIR + filename, "w") as f:
         f.write(name)
         f.write("\n")
