@@ -54,7 +54,7 @@ args = parser.parse_args()
 N_RUNS = args.runs
 SIZES_SUBSET = args.sizes_subset
 DTYPE = args.dtype
-NO_PRINT = args.printstuff
+NO_PRINT = not args.printstuff
 
 
 def create_arrays(size_tuple, dtype):

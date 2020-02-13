@@ -13,7 +13,7 @@ from imagingtester import (
     N_RUNS,
     SIZES_SUBSET,
     DTYPE,
-)
+    NO_PRINT)
 
 LIB_NAME = "cupy"
 
@@ -158,6 +158,8 @@ def print_memory_metrics():
     """
     Print some information about how much space is being used on the GPU.
     """
+    if NO_PRINT:
+        return
     print("Used bytes:", mempool.used_bytes(), "/ Total bytes:", mempool.total_bytes())
 
 
