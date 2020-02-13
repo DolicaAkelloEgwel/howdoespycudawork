@@ -18,7 +18,7 @@ LIB_NAME = "numpy"
 
 
 class NumpyImplementation(ImagingTester):
-    def __init__(self, size, dtype="float32"):
+    def __init__(self, size, dtype):
         super().__init__(size, dtype)
         self.lib_name = LIB_NAME
 
