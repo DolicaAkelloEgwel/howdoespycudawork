@@ -115,8 +115,8 @@ class NumbaImplementation(ImagingTester):
         Give the CUDA functions a chance to compile.
         """
         warm_up_arrays = create_arrays((1, 1, 1), self.dtype)
-        cuda_vectorise_add_arrays(*warm_up_arrays[:2])
-        cuda_vectorise_background_correction(*warm_up_arrays)
+        self.add_arrays(*warm_up_arrays[:2])
+        self.background_correction(*warm_up_arrays)
 
     @staticmethod
     def time_function(func):
