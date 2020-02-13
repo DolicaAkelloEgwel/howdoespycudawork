@@ -19,7 +19,7 @@ LIB_NAME = "cupy"
 
 
 class CupyImplementation(ImagingTester):
-    def __init__(self, size, pinned_memory=False, dtype="float32"):
+    def __init__(self, size, dtype, pinned_memory=False):
         super().__init__(size, dtype)
 
         if pinned_memory:
@@ -170,7 +170,7 @@ for use_pinned_memory in [True, False]:
     for size in ARRAY_SIZES[:SIZES_SUBSET]:
         try:
 
-            imaging_obj = CupyImplementation(size, use_pinned_memory, DTYPE)
+            imaging_obj = CupyImplementation(size, DTYPE, use_pinned_memory)
 
             avg_add = imaging_obj.timed_add_arrays(N_RUNS)
             imaging_obj.free_memory_pool()
