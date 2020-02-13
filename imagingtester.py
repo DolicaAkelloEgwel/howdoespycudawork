@@ -14,8 +14,9 @@ TOTAL_PIXELS = [x * y * z for x, y, z in ARRAY_SIZES]
 
 # Set params here when seeing if the script works, making changes, etc
 N_RUNS = 2
-SIZES_SUBSET = 2
+SIZES_SUBSET = len(ARRAY_SIZES)
 DTYPE = "float32"
+NO_PRINT = True
 
 RESULTS_DIR = "results/"
 SPACE_STRING = " "
@@ -60,6 +61,8 @@ class ImagingTester:
         :param runs: The number of runs used to obtain the average operation time.
         :param transfer_time: The time spent transferring the arrays to and from the GPU.
         """
+        if NO_PRINT:
+            return
         if transfer_time is not None:
             print(
                 "With %s transferring arrays of size %s took %ss and %s took an average of %ss over %s runs."

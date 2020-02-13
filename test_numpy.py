@@ -65,7 +65,7 @@ for size in ARRAY_SIZES[:SIZES_SUBSET]:
     start = time.time()
     imaging_obj = NumpyImplementation(size, DTYPE)
     end = time.time()
-    print("Array creation time", end - start)
+    print("Array creation time:", end - start)
 
     add_arrays.append(imaging_obj.timed_add_arrays(N_RUNS))
     background_correction.append(imaging_obj.timed_background_correction(N_RUNS))
