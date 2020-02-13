@@ -56,7 +56,7 @@ class NumpyImplementation(ImagingTester):
         return operation_time
 
 
-# Create empty arrays for benchmarking results
+# Create empty lists for storing results
 add_arrays = []
 background_correction = []
 

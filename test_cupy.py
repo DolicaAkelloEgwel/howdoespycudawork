@@ -163,7 +163,7 @@ def print_memory_metrics():
 
 for use_pinned_memory in [True, False]:
 
-    # Create empty arrays for benchmarking results
+    # Create empty lists for storing results
     add_arrays = []
     background_correction = []
 
@@ -177,6 +177,7 @@ for use_pinned_memory in [True, False]:
 
             avg_bc = imaging_obj.timed_background_correction(N_RUNS)
             imaging_obj.free_memory_pool()
+            del imaging_obj
 
         except cp.cuda.memory.OutOfMemoryError as e:
             print(e)
