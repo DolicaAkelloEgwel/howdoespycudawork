@@ -1,3 +1,5 @@
+import argparse
+
 import numpy as np
 
 MINIMUM_PIXEL_VALUE = 1e-9
@@ -12,16 +14,47 @@ ARRAY_SIZES = [
 ]
 TOTAL_PIXELS = [x * y * z for x, y, z in ARRAY_SIZES]
 
-# Set params here when seeing if the script works, making changes, etc
-N_RUNS = 2
-SIZES_SUBSET = len(ARRAY_SIZES)
-DTYPE = "float32"
-NO_PRINT = True
-
 RESULTS_DIR = "results/"
 SPACE_STRING = " "
 ADD_ARRAYS = "add arrays"
 BACKGROUND_CORRECTION = "background correction"
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "-runs",
+    type=int,
+    default=20,
+    help="The number of runs that should be carried out for the imaging procedures in order to obtain an average performance time.",
+)
+parser.add_argument(
+    "-sizes_subset",
+    type=int,
+    default=len(ARRAY_SIZES),
+    choices=range(1, len(ARRAY_SIZES)),
+    help="How many of the first X elements in the list of sizes {} will be used for testing performance.".format(
+        ARRAY_SIZES
+    ),
+)
+parser.add_argument(
+    "-dtype",
+    type=str,
+    default="float32",
+    choices=["float16", "float32", "float64"],
+    help="The float datatype that will be used for the CPU/GPU arrays. Higher precision will require more GPU transfer.",
+)
+parser.add_argument(
+    "-printstuff",
+    type=bool,
+    default=True,
+    help="Whether or not you want to see print statements every time something happens.",
+)
+args = parser.parse_args()
+
+N_RUNS = args.runs
+SIZES_SUBSET = args.sizes_subset
+DTYPE = args.dtype
+NO_PRINT = args.printstuff
 
 
 def create_arrays(size_tuple, dtype):
@@ -37,6 +70,7 @@ class ImagingTester:
     def __init__(self, size, dtype):
         self.cpu_arrays = None
         self.lib_name = None
+        self.dtype = dtype
         self.create_arrays(size, dtype)
 
     def create_arrays(self, size_tuple, dtype):
@@ -86,6 +120,16 @@ class ImagingTester:
                     runs,
                 )
             )
+
+
+def print_array_creation_time(time):
+    """
+    Print the array creation time. Generating large random arrays can take a while.
+    :param time: Time taken to create the array.
+    """
+    if NO_PRINT:
+        return
+    print("Array creation time: %ss" % time)
 
 
 def write_results_to_file(name_list, results):
