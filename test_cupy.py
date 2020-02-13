@@ -13,8 +13,14 @@ from imagingtester import (
 
 
 class CupyImplementation(ImagingTester):
-    def __init__(self, size, dtype="float32"):
+    def __init__(self, size, pinned_memory=False, dtype="float32"):
         super().__init__(size, dtype)
+
+        if pinned_memory:
+            self._send_arrays_to_gpu = self._send_arrays_to_gpu_with_pinned_memory
+        else:
+            self._send_arrays_to_gpu = self._send_arrays_to_gpu_without_pinned_memory
+
         self.warm_up()
         self.lib_name = "cupy"
 
@@ -51,7 +57,7 @@ class CupyImplementation(ImagingTester):
         src[...] = cpu_array
         return src
 
-    def _send_arrays_to_gpu(self):
+    def _send_arrays_to_gpu_with_pinned_memory(self):
         """
         Transfer the arrays to the GPU using pinned memory.
         """
@@ -63,6 +69,12 @@ class CupyImplementation(ImagingTester):
             gpu_array = cp.empty(pinned_memory.shape, dtype="float32")
             gpu_array.set(pinned_memory, stream=array_stream)
             self.gpu_arrays.append(gpu_array)
+
+    def _send_arrays_to_gpu_without_pinned_memory(self):
+        """
+        Transfer the arrays to the GPU without using pinned memory.
+        """
+        self.gpu_arrays = [cp.asarray(cpu_array) for cpu_array in self.cpu_arrays]
 
     @staticmethod
     def time_function(func):
