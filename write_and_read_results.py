@@ -11,7 +11,7 @@ def write_results_to_file(lib_and_mode, alg, results):
     :param results:
     """
     name = SPACE_STRING.join(lib_and_mode)
-    filename = name.replace(SPACE_STRING, "_")
+    filename = name.replace(SPACE_STRING, "_") + "_" + alg.replace(SPACE_STRING, "_")
     with open(RESULTS_DIR + filename, "w+") as f:
         f.write(name)
         f.write("\n")
@@ -27,9 +27,10 @@ def read_results_from_files():
 
     for filename in os.listdir(os.path.join(os.getcwd(), RESULTS_DIR)):
         with open(RESULTS_DIR + filename) as f:
-            name = f.readline()
-            alg = f.readline()
-            results[name] = dict()
+            name = f.readline()[:-1]
+            alg = f.readline()[:-1]
+            if not name in results.keys():
+                results[name] = dict()
             results[name][alg] = [float(line) for line in f.readlines()]
 
     return results

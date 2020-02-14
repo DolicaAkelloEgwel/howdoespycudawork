@@ -9,13 +9,15 @@ import pandas as pd
 
 results = read_results_from_files()
 
+print(results)
+
 # Plot Adding Arrays
 ax = plt.subplot(1, 2, 1)
 plt.title("Average Time Taken To Add Two Arrays")
 
 for key in results.keys():
-    if ADD_ARRAYS in key:
-        plt.plot(results[key], label=key, marker=".")
+    print(results[key])
+    plt.plot(results[key][ADD_ARRAYS], label=key, marker=".")
 
 plt.yscale("log")
 plt.xticks(range(len(TOTAL_PIXELS)), TOTAL_PIXELS)
@@ -26,8 +28,7 @@ plt.subplot(1, 2, 2)
 plt.title("Average Time Taken To Do Background Correction")
 
 for key in results.keys():
-    if BACKGROUND_CORRECTION in key:
-        plt.plot(results[key], label=key, marker=".")
+    plt.plot(results[key][BACKGROUND_CORRECTION], label=key, marker=".")
 
 plt.ylabel("Time Taken")
 plt.xticks(range(len(TOTAL_PIXELS)), TOTAL_PIXELS)
