@@ -123,5 +123,5 @@ for size in ARRAY_SIZES:
     background_correction.append(avg_bc)
 
 
-write_results_to_file([LIB_NAME, ADD_ARRAYS], add_arrays)
-write_results_to_file([LIB_NAME, BACKGROUND_CORRECTION], background_correction)
+write_results_to_file([LIB_NAME], ADD_ARRAYS, add_arrays)
+write_results_to_file([LIB_NAME], BACKGROUND_CORRECTION, background_correction)

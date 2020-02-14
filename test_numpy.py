@@ -10,7 +10,12 @@ from imagingtester import (
     DTYPE,
     N_RUNS,
 )
-from write_and_read_results import write_results_to_file, ARRAY_SIZES
+from write_and_read_results import (
+    write_results_to_file,
+    ARRAY_SIZES,
+    ADD_ARRAYS,
+    BACKGROUND_CORRECTION,
+)
 
 LIB_NAME = "numpy"
 
@@ -66,5 +71,5 @@ for size in ARRAY_SIZES[:SIZES_SUBSET]:
     add_arrays.append(imaging_obj.timed_add_arrays(N_RUNS))
     background_correction.append(imaging_obj.timed_background_correction(N_RUNS))
 
-write_results_to_file([LIB_NAME, "add arrays"], add_arrays)
-write_results_to_file([LIB_NAME, "background correction"], background_correction)
+write_results_to_file([LIB_NAME], ADD_ARRAYS, add_arrays)
+write_results_to_file([LIB_NAME], BACKGROUND_CORRECTION, background_correction)

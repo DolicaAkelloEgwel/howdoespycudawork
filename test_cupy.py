@@ -199,7 +199,7 @@ for use_pinned_memory in [True, False]:
     else:
         memory_string = "without pinned memory"
 
-    write_results_to_file([LIB_NAME, ADD_ARRAYS, memory_string], add_arrays)
+    write_results_to_file([LIB_NAME, memory_string], ADD_ARRAYS, add_arrays)
     write_results_to_file(
-        [LIB_NAME, BACKGROUND_CORRECTION, memory_string], background_correction
+        [LIB_NAME, memory_string], BACKGROUND_CORRECTION, background_correction
     )

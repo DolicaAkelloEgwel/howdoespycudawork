@@ -5,11 +5,12 @@ from write_and_read_results import (
     ADD_ARRAYS,
 )
 from matplotlib import pyplot as plt
+import pandas as pd
 
 results = read_results_from_files()
 
 # Plot Adding Arrays
-plt.subplot(1, 2, 1)
+ax = plt.subplot(1, 2, 1)
 plt.title("Average Time Taken To Add Two Arrays")
 
 for key in results.keys():
@@ -18,7 +19,7 @@ for key in results.keys():
 
 plt.yscale("log")
 plt.xticks(range(len(TOTAL_PIXELS)), TOTAL_PIXELS)
-plt.legend()
+plt.legend(bbox_to_anchor=(1.04, 1), loc="upper left")
 
 ## Plot Background Correction Times
 plt.subplot(1, 2, 2)
@@ -32,6 +33,6 @@ plt.ylabel("Time Taken")
 plt.xticks(range(len(TOTAL_PIXELS)), TOTAL_PIXELS)
 plt.yscale("log")
 plt.xlabel("Number of Pixels/Elements")
-plt.legend()
+plt.legend(bbox_to_anchor=(1.04, 1), loc="upper left")
 
 plt.show()

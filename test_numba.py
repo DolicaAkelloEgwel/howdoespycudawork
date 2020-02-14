@@ -168,7 +168,7 @@ for mode in MODES:
             print(e)
             break
 
-    write_results_to_file([LIB_NAME, mode, ADD_ARRAYS], add_arrays)
+    write_results_to_file([LIB_NAME, mode], ADD_ARRAYS, add_arrays)
     write_results_to_file(
-        [LIB_NAME, mode, BACKGROUND_CORRECTION], background_correction
+        [LIB_NAME, mode], BACKGROUND_CORRECTION, background_correction
     )
