@@ -1,9 +1,11 @@
 import argparse
 from subprocess import call
 
+from write_and_read_results import ARRAY_SIZES
+
 TEST = "test_"
 libraries = ["numpy", "numba", "cupy", "pycuda"]
-N_SIZES = 5
+N_SIZES = len(ARRAY_SIZES)
 
 parser = argparse.ArgumentParser()
 parser.add_argument(

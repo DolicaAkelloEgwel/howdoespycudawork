@@ -5,17 +5,13 @@ from cupy.cuda.stream import Event
 import pycuda.gpuarray as gpuarray
 import pycuda.driver as drv
 
-from imagingtester import (
-    ImagingTester,
-    ARRAY_SIZES,
-    NO_PRINT,
-    create_arrays,
-    DTYPE,
+from imagingtester import ImagingTester, NO_PRINT, create_arrays, DTYPE, N_RUNS
+from write_and_read_results import (
+    write_results_to_file,
     ADD_ARRAYS,
     BACKGROUND_CORRECTION,
-    N_RUNS,
+    ARRAY_SIZES,
 )
-from write_and_read_results import write_results_to_file
 
 LIB_NAME = "pycuda"
 

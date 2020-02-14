@@ -6,12 +6,11 @@ from imagingtester import (
     ImagingTester,
     MINIMUM_PIXEL_VALUE,
     MAXIMUM_PIXEL_VALUE,
-    ARRAY_SIZES,
     SIZES_SUBSET,
     DTYPE,
     N_RUNS,
 )
-from write_and_read_results import write_results_to_file
+from write_and_read_results import write_results_to_file, ARRAY_SIZES
 
 LIB_NAME = "numpy"
 

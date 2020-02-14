@@ -7,16 +7,18 @@ from imagingtester import (
     ImagingTester,
     MINIMUM_PIXEL_VALUE,
     MAXIMUM_PIXEL_VALUE,
-    ARRAY_SIZES,
     create_arrays,
     N_RUNS,
     SIZES_SUBSET,
     DTYPE,
     NO_PRINT,
+)
+from write_and_read_results import (
+    write_results_to_file,
     ADD_ARRAYS,
     BACKGROUND_CORRECTION,
+    ARRAY_SIZES,
 )
-from write_and_read_results import write_results_to_file
 
 LIB_NAME = "cupy"
 

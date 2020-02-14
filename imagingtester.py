@@ -6,18 +6,6 @@ import numpy as np
 MINIMUM_PIXEL_VALUE = 1e-9
 MAXIMUM_PIXEL_VALUE = 1e9
 
-ARRAY_SIZES = [
-    (10, 100, 1000),
-    (100, 100, 1000),
-    (100, 1000, 1000),
-    (1000, 1000, 1000),
-    (1500, 1500, 1000),
-]
-TOTAL_PIXELS = [x * y * z for x, y, z in ARRAY_SIZES]
-
-ADD_ARRAYS = "add arrays"
-BACKGROUND_CORRECTION = "background correction"
-
 N_RUNS = int(sys.argv[1])
 SIZES_SUBSET = int(sys.argv[2])
 DTYPE = sys.argv[3]

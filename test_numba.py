@@ -4,17 +4,19 @@ import time
 
 from imagingtester import (
     ImagingTester,
-    ARRAY_SIZES,
     MINIMUM_PIXEL_VALUE,
     MAXIMUM_PIXEL_VALUE,
-    ADD_ARRAYS,
-    BACKGROUND_CORRECTION,
     N_RUNS,
     DTYPE,
     create_arrays,
     SIZES_SUBSET,
 )
-from write_and_read_results import write_results_to_file
+from write_and_read_results import (
+    write_results_to_file,
+    ADD_ARRAYS,
+    BACKGROUND_CORRECTION,
+    ARRAY_SIZES,
+)
 
 LIB_NAME = "numba"
 

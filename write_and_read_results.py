@@ -29,3 +29,15 @@ def read_results_from_files():
             results[name] = [float(line) for line in f.readlines()]
 
     return results
+
+
+ADD_ARRAYS = "add arrays"
+BACKGROUND_CORRECTION = "background correction"
+ARRAY_SIZES = [
+    (10, 100, 1000),
+    (100, 100, 1000),
+    (100, 1000, 1000),
+    (1000, 1000, 1000),
+    (1500, 1500, 1000),
+]
+TOTAL_PIXELS = [x * y * z for x, y, z in ARRAY_SIZES]
