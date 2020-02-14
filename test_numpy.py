@@ -8,7 +8,6 @@ from imagingtester import (
     MAXIMUM_PIXEL_VALUE,
     ARRAY_SIZES,
     write_results_to_file,
-    print_array_creation_time,
     SIZES_SUBSET,
     DTYPE,
     N_RUNS,
@@ -63,10 +62,7 @@ background_correction = []
 
 for size in ARRAY_SIZES[:SIZES_SUBSET]:
 
-    start = time.time()
     imaging_obj = NumpyImplementation(size, DTYPE)
-    end = time.time()
-    print_array_creation_time(end - start)
 
     add_arrays.append(imaging_obj.timed_add_arrays(N_RUNS))
     background_correction.append(imaging_obj.timed_background_correction(N_RUNS))

@@ -1,4 +1,5 @@
 import sys
+import time
 
 import numpy as np
 
@@ -42,7 +43,10 @@ class ImagingTester:
         self.create_arrays(size, dtype)
 
     def create_arrays(self, size_tuple, dtype):
+        start = time.time()
         self.cpu_arrays = create_arrays(size_tuple, dtype)
+        end = time.time()
+        print_array_creation_time(end - start)
 
     def warm_up(self):
         pass
