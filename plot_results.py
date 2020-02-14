@@ -12,7 +12,7 @@ results = read_results_from_files()
 print(results)
 
 # Plot Adding Arrays
-ax = plt.subplot(1, 2, 1)
+plt.subplot(2, 2, 1)
 plt.title("Average Time Taken To Add Two Arrays")
 
 for key in results.keys():
@@ -21,10 +21,9 @@ for key in results.keys():
 
 plt.yscale("log")
 plt.xticks(range(len(TOTAL_PIXELS)), TOTAL_PIXELS)
-plt.legend(bbox_to_anchor=(1.04, 1), loc="upper left")
 
 ## Plot Background Correction Times
-plt.subplot(1, 2, 2)
+plt.subplot(2, 2, 3)
 plt.title("Average Time Taken To Do Background Correction")
 
 for key in results.keys():
@@ -35,5 +34,41 @@ plt.xticks(range(len(TOTAL_PIXELS)), TOTAL_PIXELS)
 plt.yscale("log")
 plt.xlabel("Number of Pixels/Elements")
 plt.legend(bbox_to_anchor=(1.04, 1), loc="upper left")
+
+# Plot Adding Speed Difference
+plt.subplot(2, 2, 2)
+plt.title("Speed Change For Adding Arrays When Compared With numpy")
+
+
+def truediv(a, b):
+    return a / b
+
+
+for key in results.keys():
+    if key == "numpy":
+        continue
+    diff = list(map(truediv, results["numpy"][ADD_ARRAYS], results[key][ADD_ARRAYS]))
+    plt.plot(diff, label=key, marker=".")
+    plt.xticks(range(len(TOTAL_PIXELS)), TOTAL_PIXELS)
+    plt.xlabel("Number of Pixels/Elements")
+
+# Plot Adding Speed Difference
+plt.subplot(2, 2, 4)
+plt.title("Speed Change For Background Correction When Compared With numpy")
+
+
+for key in results.keys():
+    if key == "numpy":
+        continue
+    diff = list(
+        map(
+            truediv,
+            results["numpy"][BACKGROUND_CORRECTION],
+            results[key][BACKGROUND_CORRECTION],
+        )
+    )
+    plt.plot(diff, label=key, marker=".")
+    plt.xticks(range(len(TOTAL_PIXELS)), TOTAL_PIXELS)
+    plt.xlabel("Number of Pixels/Elements")
 
 plt.show()
