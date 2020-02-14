@@ -11,10 +11,11 @@ from imagingtester import (
     NO_PRINT,
     create_arrays,
     DTYPE,
-    write_results_to_file,
     ADD_ARRAYS,
     BACKGROUND_CORRECTION,
+    N_RUNS,
 )
+from write_and_read_results import write_results_to_file
 
 LIB_NAME = "pycuda"
 
@@ -111,9 +112,10 @@ for size in ARRAY_SIZES:
     try:
 
         imaging_obj = PyCudaImplementation(size, DTYPE)
-        avg_add = imaging_obj.timed_add_arrays(20)
-        avg_bc = imaging_obj.timed_background_correction(20)
+        avg_add = imaging_obj.timed_add_arrays(N_RUNS)
+        avg_bc = imaging_obj.timed_background_correction(N_RUNS)
         imaging_obj.free_memory_pool()
+        drv.Context.pop()
         del imaging_obj
 
     except (cp.cuda.memory.OutOfMemoryError, drv.MemoryError) as e:
@@ -124,7 +126,6 @@ for size in ARRAY_SIZES:
     add_arrays.append(avg_add)
     background_correction.append(avg_bc)
 
-drv.Context.pop()
 
 write_results_to_file([LIB_NAME, ADD_ARRAYS], add_arrays)
 write_results_to_file([LIB_NAME, BACKGROUND_CORRECTION], background_correction)

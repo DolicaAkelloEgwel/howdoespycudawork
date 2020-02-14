@@ -7,11 +7,11 @@ from imagingtester import (
     MINIMUM_PIXEL_VALUE,
     MAXIMUM_PIXEL_VALUE,
     ARRAY_SIZES,
-    write_results_to_file,
     SIZES_SUBSET,
     DTYPE,
     N_RUNS,
 )
+from write_and_read_results import write_results_to_file
 
 LIB_NAME = "numpy"
 

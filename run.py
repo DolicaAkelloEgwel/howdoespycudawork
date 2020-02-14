@@ -42,3 +42,5 @@ print_stuff = args.printstuff
 
 for lib in libraries:
     call(["python", TEST + lib + ".py", runs, sizes_subset, dtype, print_stuff])
+
+call(["python", "plot_results.py"])

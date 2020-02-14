@@ -9,12 +9,12 @@ from imagingtester import (
     MAXIMUM_PIXEL_VALUE,
     ADD_ARRAYS,
     BACKGROUND_CORRECTION,
-    write_results_to_file,
     N_RUNS,
     DTYPE,
     create_arrays,
     SIZES_SUBSET,
 )
+from write_and_read_results import write_results_to_file
 
 LIB_NAME = "numba"
 

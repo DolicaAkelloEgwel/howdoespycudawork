@@ -9,7 +9,6 @@ from imagingtester import (
     MAXIMUM_PIXEL_VALUE,
     ARRAY_SIZES,
     create_arrays,
-    write_results_to_file,
     N_RUNS,
     SIZES_SUBSET,
     DTYPE,
@@ -17,6 +16,7 @@ from imagingtester import (
     ADD_ARRAYS,
     BACKGROUND_CORRECTION,
 )
+from write_and_read_results import write_results_to_file
 
 LIB_NAME = "cupy"
 
