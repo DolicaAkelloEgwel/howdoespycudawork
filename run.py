@@ -3,6 +3,7 @@ from subprocess import call
 
 TEST = "test_"
 libraries = ["numpy", "numba", "cupy", "pycuda"]
+N_SIZES = 5
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -14,15 +15,15 @@ parser.add_argument(
 parser.add_argument(
     "--sizes_subset",
     type=int,
-    default=5,
-    choices=range(1, 5),
+    default=N_SIZES,
+    choices=range(1, N_SIZES + 1),
     help="How many of the first X elements in the list of sizes will be used for testing performance.",
 )
 parser.add_argument(
     "--dtype",
     type=str,
     default="float32",
-    choices=["float16", "float32", "float64"],
+    choices=["float32", "float64"],
     help="The float datatype that will be used for the CPU/GPU arrays. Higher precision will require more GPU transfer.",
 )
 parser.add_argument(
