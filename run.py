@@ -28,8 +28,9 @@ parser.add_argument(
 )
 parser.add_argument(
     "--printstuff",
-    default=False,
-    action="store_true",
+    default="",
+    action="store_const",
+    const="printstuff",
     help="Whether or not you want to see print statements every time something happens.",
 )
 args = parser.parse_args()
@@ -37,7 +38,7 @@ args = parser.parse_args()
 runs = str(args.runs)
 sizes_subset = str(args.sizes_subset)
 dtype = args.dtype
-print_stuff = str(args.printstuff)
+print_stuff = args.printstuff
 
 for lib in libraries:
     call(["python", TEST + lib + ".py", runs, sizes_subset, dtype, print_stuff])
