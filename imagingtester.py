@@ -24,8 +24,6 @@ SIZES_SUBSET = int(sys.argv[2])
 DTYPE = sys.argv[3]
 NO_PRINT = not bool(sys.argv[4])
 
-print(NO_PRINT)
-
 
 def create_arrays(size_tuple, dtype):
     return [
@@ -110,7 +108,7 @@ def write_results_to_file(name_list, results):
     """
     name = SPACE_STRING.join(name_list)
     filename = name.replace(" ", "_")
-    with open(RESULTS_DIR + filename, "w") as f:
+    with open(RESULTS_DIR + filename, "w+") as f:
         f.write(name)
         f.write("\n")
         for val in results:
