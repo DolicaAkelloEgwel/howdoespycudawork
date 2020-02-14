@@ -1,3 +1,4 @@
+import sys
 import time
 
 import numpy as np
@@ -7,11 +8,11 @@ from imagingtester import (
     MINIMUM_PIXEL_VALUE,
     MAXIMUM_PIXEL_VALUE,
     ARRAY_SIZES,
-    N_RUNS,
     write_results_to_file,
+    print_array_creation_time,
     SIZES_SUBSET,
     DTYPE,
-    print_array_creation_time,
+    N_RUNS,
 )
 
 LIB_NAME = "numpy"

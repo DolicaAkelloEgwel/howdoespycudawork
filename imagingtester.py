@@ -1,4 +1,4 @@
-import argparse
+import sys
 
 import numpy as np
 
@@ -19,42 +19,12 @@ SPACE_STRING = " "
 ADD_ARRAYS = "add arrays"
 BACKGROUND_CORRECTION = "background correction"
 
+N_RUNS = int(sys.argv[1])
+SIZES_SUBSET = int(sys.argv[2])
+DTYPE = sys.argv[3]
+NO_PRINT = not bool(sys.argv[4])
 
-parser = argparse.ArgumentParser()
-parser.add_argument(
-    "-runs",
-    type=int,
-    default=20,
-    help="The number of runs that should be carried out for the imaging procedures in order to obtain an average performance time.",
-)
-parser.add_argument(
-    "-sizes_subset",
-    type=int,
-    default=len(ARRAY_SIZES),
-    choices=range(1, len(ARRAY_SIZES)),
-    help="How many of the first X elements in the list of sizes {} will be used for testing performance.".format(
-        ARRAY_SIZES
-    ),
-)
-parser.add_argument(
-    "-dtype",
-    type=str,
-    default="float32",
-    choices=["float16", "float32", "float64"],
-    help="The float datatype that will be used for the CPU/GPU arrays. Higher precision will require more GPU transfer.",
-)
-parser.add_argument(
-    "-printstuff",
-    type=bool,
-    default=True,
-    help="Whether or not you want to see print statements every time something happens.",
-)
-args = parser.parse_args()
-
-N_RUNS = args.runs
-SIZES_SUBSET = args.sizes_subset
-DTYPE = args.dtype
-NO_PRINT = not args.printstuff
+print(NO_PRINT)
 
 
 def create_arrays(size_tuple, dtype):
@@ -86,7 +56,7 @@ class ImagingTester:
         pass
 
     def print_operation_times(
-        self, operation_time, operation_name, runs, transfer_time
+        self, operation_time, operation_name, runs, transfer_time=None
     ):
         """
         Print the time spent doing performing a calculation and the time spent transferring arrays.

@@ -14,6 +14,8 @@ from imagingtester import (
     SIZES_SUBSET,
     DTYPE,
     NO_PRINT,
+    ADD_ARRAYS,
+    BACKGROUND_CORRECTION,
 )
 
 LIB_NAME = "cupy"
@@ -195,7 +197,7 @@ for use_pinned_memory in [True, False]:
     else:
         memory_string = "without pinned memory"
 
-    write_results_to_file([LIB_NAME, "add arrays", memory_string], add_arrays)
+    write_results_to_file([LIB_NAME, ADD_ARRAYS, memory_string], add_arrays)
     write_results_to_file(
-        [LIB_NAME, "background correction", memory_string], background_correction
+        [LIB_NAME, BACKGROUND_CORRECTION, memory_string], background_correction
     )
