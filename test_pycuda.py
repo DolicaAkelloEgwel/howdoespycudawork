@@ -1,127 +1,162 @@
-import cupy as cp
 import time
 
-from cupy.cuda.stream import Event
 import pycuda.gpuarray as gpuarray
 import pycuda.driver as drv
+import pycuda.autoinit
 
-from imagingtester import ImagingTester, NO_PRINT, create_arrays, DTYPE, N_RUNS
+from pycuda.elementwise import ElementwiseKernel
+
+from imagingtester import (
+    create_arrays,
+    MINIMUM_PIXEL_VALUE,
+    MAXIMUM_PIXEL_VALUE,
+    DTYPE,
+    N_RUNS,
+)
 from write_and_read_results import (
-    write_results_to_file,
-    ADD_ARRAYS,
-    BACKGROUND_CORRECTION,
     ARRAY_SIZES,
+    write_results_to_file,
+    BACKGROUND_CORRECTION,
+    ADD_ARRAYS,
 )
 
 LIB_NAME = "pycuda"
 
+# Initialise PyCuda Driver
+drv.init()
+drv.Device(0).make_context()
 
-class PyCudaImplementation(ImagingTester):
-    def __init__(self, size, dtype):
-        super().__init__(size, dtype)
-        drv.init()
-        drv.Device(0).make_context()
-        self.lib_name = LIB_NAME
+# Create an element-wise Background Correction Function
+BackgroundCorrectionKernel = ElementwiseKernel(
+    arguments="float * data, float * flat, const float * dark, const float MINIMUM_PIXEL_VALUE, const float MAXIMUM_PIXEL_VALUE",
+    operation="flat[i] -= dark[i];"
+    "if (flat[i] <= 0) flat[i] = MINIMUM_PIXEL_VALUE;"
+    "data[i] -= dark[i];"
+    "data[i] /= flat[i];"
+    "if (flat[i] > MAXIMUM_PIXEL_VALUE) flat[i] = MAXIMUM_PIXEL_VALUE;"
+    "if (flat[i] < MINIMUM_PIXEL_VALUE) flat[i] = MINIMUM_PIXEL_VALUE;",
+    name="BackgroundCorrectionKernel",
+)
 
-    def warm_up(self):
-        """
-        Give CUDA an opportunity to compile these functions.
-        """
-        warm_up_arrays = [
-            gpuarray.to_gpu(cpu_array)
-            for cpu_array in create_arrays((1, 1, 1), self.dtype)
-        ]
-        self.add_arrays(*warm_up_arrays[:2])
-        self.background_correction(*warm_up_arrays)
+elementwise_background_correction = lambda data, flat, dark: BackgroundCorrectionKernel(
+    data, flat, dark, MINIMUM_PIXEL_VALUE, MAXIMUM_PIXEL_VALUE
+)
 
-    def free_memory_pool(self):
-        for gpu_array in self.gpu_arrays:
-            gpu_array.gpudata.free()
-
-    def _send_arrays_to_gpu(self):
-        self.gpu_arrays = [gpuarray.to_gpu(np_arr) for np_arr in self.cpu_arrays]
-
-    def time_function(self, func):
-        drv.Context.synchronize()
-        start = time.time()
-        func()
-        drv.Context.synchronize()
-        end = time.time()
-        return end - start
-
-    @staticmethod
-    def add_arrays(arr1, arr2):
-        arr1 += arr2
-
-    def timed_add_arrays(self, runs):
-        operation_time = 0
-        transfer_time = self.time_function(self._send_arrays_to_gpu)
-        arr1, arr2 = self.gpu_arrays[:2]
-
-        for _ in range(runs):
-            operation_time += self.time_function(lambda: self.add_arrays(arr1, arr2))
-
-        transfer_time += self.time_function(arr1.get)
-        self.print_operation_times(
-            operation_time / runs, ADD_ARRAYS, runs, transfer_time
-        )
-
-        return transfer_time + operation_time / runs
-
-    @staticmethod
-    def background_correction(data, dark, flat):
-        norm_divide = flat - dark
-        data -= dark
-        flat -= dark
-        data /= flat
-
-    def timed_background_correction(self, runs):
-        operation_time = 0
-        transfer_time = self.time_function(self._send_arrays_to_gpu)
-        data, dark, flat = self.gpu_arrays
-
-        for _ in range(runs):
-            operation_time += self.time_function(
-                lambda: self.background_correction(data, dark, flat)
-            )
-
-        transfer_time += self.time_function(data.get)
-        self.print_operation_times(
-            operation_time / runs, BACKGROUND_CORRECTION, runs, transfer_time
-        )
-
-        return transfer_time + operation_time / runs
+# Create an element-wise Add Array Function
+AddArraysKernel = ElementwiseKernel(
+    arguments="float * arr1, float * arr2",
+    operation="arr1[i] += arr2[i];",
+    name="AddArraysKernel",
+)
 
 
-def print_memory_metrics():
-    if NO_PRINT:
-        return
-    free, total = drv.mem_get_info()
-    print("Used bytes:", total - free, "/ Total bytes:", total)
+def send_arrays_to_gpu(cpu_arrays):
+    return [gpuarray.to_gpu(cpu_array) for cpu_array in cpu_arrays]
 
 
-add_arrays = []
-background_correction = []
+def free_memory_pool(gpu_arrays):
+    for gpu_array in gpu_arrays:
+        gpu_array.gpudata.free()
+
+
+def get_synchronized_time():
+    drv.Context.synchronize()
+    return time.time()
+
+
+def time_function(func):
+    start = get_synchronized_time()
+    func()
+    end = get_synchronized_time()
+    return end - start
+
+
+def find_average_time(func, runs):
+    total_time = 0
+    for _ in range(runs):
+        total_time += time_function(func)
+    return total_time / runs
+
+
+def timed_send_arrays_to_gpu(cpu_arrays):
+    start = get_synchronized_time()
+    gpu_arrays = [gpuarray.to_gpu(cpu_array) for cpu_array in cpu_arrays]
+    end = get_synchronized_time()
+    cpu_to_gpu_time = end - start
+    return cpu_to_gpu_time, gpu_arrays
+
+
+def timed_get_array_from_gpu(gpu_array):
+    start = get_synchronized_time()
+    gpu_array.get()
+    end = get_synchronized_time()
+    return end - start
+
+
+# Warm-up Kernels
+warm_up_size = (1, 1, 1)
+cpu_arrays = create_arrays(warm_up_size, DTYPE)
+gpu_arrays = [gpuarray.to_gpu(array) for array in cpu_arrays]
+BackgroundCorrectionKernel(
+    gpu_arrays[0],
+    gpu_arrays[1],
+    gpu_arrays[2],
+    MINIMUM_PIXEL_VALUE,
+    MAXIMUM_PIXEL_VALUE,
+)
+AddArraysKernel(gpu_arrays[0], gpu_arrays[1])
+
+
+def time_background_correction_and_transfer(cpu_arrays):
+
+    cpu_to_gpu_time, gpu_arrays = timed_send_arrays_to_gpu(cpu_arrays)
+
+    # Carry out background correction
+    operation_time = find_average_time(
+        lambda: elementwise_background_correction(
+            gpu_arrays[0], gpu_arrays[1], gpu_arrays[2]
+        ),
+        N_RUNS,
+    )
+
+    gpu_to_cpu_time = timed_get_array_from_gpu(gpu_arrays[0])
+    free_memory_pool(gpu_arrays)
+
+    return cpu_to_gpu_time + operation_time + gpu_to_cpu_time
+
+
+def time_adding_arrays_and_transfer(cpu_arrays):
+
+    cpu_to_gpu_time, gpu_arrays = timed_send_arrays_to_gpu(cpu_arrays[:2])
+    operation_time = find_average_time(lambda: AddArraysKernel(*gpu_arrays), N_RUNS)
+    gpu_to_cpu_time = timed_get_array_from_gpu(gpu_arrays[0])
+    free_memory_pool(gpu_arrays)
+
+    return cpu_to_gpu_time + operation_time + gpu_to_cpu_time
+
+
+background_correction_times = []
+add_arrays_times = []
+
 
 for size in ARRAY_SIZES:
 
+    cpu_arrays = create_arrays(size, DTYPE)
+
     try:
 
-        imaging_obj = PyCudaImplementation(size, DTYPE)
-        avg_add = imaging_obj.timed_add_arrays(N_RUNS)
-        avg_bc = imaging_obj.timed_background_correction(N_RUNS)
-        imaging_obj.free_memory_pool()
-        drv.Context.pop()
-        del imaging_obj
+        background_correction_times.append(
+            time_background_correction_and_transfer(cpu_arrays)
+        )
 
-    except (cp.cuda.memory.OutOfMemoryError, drv.MemoryError) as e:
+        add_arrays_times.append(time_adding_arrays_and_transfer(cpu_arrays))
+
+    except drv.MemoryError as e:
         print(e)
         print("Unable to make GPU arrays with size", size)
         break
 
-    add_arrays.append(avg_add)
-    background_correction.append(avg_bc)
-
-
-write_results_to_file([LIB_NAME], ADD_ARRAYS, add_arrays)
-write_results_to_file([LIB_NAME], BACKGROUND_CORRECTION, background_correction)
+write_results_to_file(
+    [LIB_NAME, "elementwise kernel"], BACKGROUND_CORRECTION, background_correction_times
+)
+write_results_to_file([LIB_NAME, "elementwise kernel"], ADD_ARRAYS, add_arrays_times)
