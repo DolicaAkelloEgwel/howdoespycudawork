@@ -160,3 +160,5 @@ write_results_to_file(
     [LIB_NAME, "elementwise kernel"], BACKGROUND_CORRECTION, background_correction_times
 )
 write_results_to_file([LIB_NAME, "elementwise kernel"], ADD_ARRAYS, add_arrays_times)
+
+drv.Context.pop()
