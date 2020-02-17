@@ -17,6 +17,7 @@ from write_and_read_results import (
     ARRAY_SIZES,
     write_results_to_file,
     BACKGROUND_CORRECTION,
+    ADD_ARRAYS,
 )
 
 LIB_NAME = "pycuda"
@@ -77,6 +78,21 @@ def find_average_time(func, runs):
     return total_time / runs
 
 
+def timed_send_arrays_to_gpu(cpu_arrays):
+    start = get_synchronized_time()
+    gpu_arrays = [gpuarray.to_gpu(cpu_array) for cpu_array in cpu_arrays]
+    end = get_synchronized_time()
+    cpu_to_gpu_time = end - start
+    return cpu_to_gpu_time, gpu_arrays
+
+
+def timed_get_array_from_gpu(gpu_array):
+    start = get_synchronized_time()
+    gpu_array.get()
+    end = get_synchronized_time()
+    return end - start
+
+
 # Warm-up Kernels
 warm_up_size = (1, 1, 1)
 cpu_arrays = create_arrays(warm_up_size, DTYPE)
@@ -90,17 +106,10 @@ BackgroundCorrectionKernel(
 )
 AddArraysKernel(gpu_arrays[0], gpu_arrays[1])
 
-background_correction_times = []
-add_arrays = []
 
+def time_background_correction_and_transfer(cpu_arrays):
 
-def time_background_correction_and_transfer(gpu_arrays):
-
-    # Send the arrays to GPU and time it
-    start = get_synchronized_time()
-    gpu_arrays = [gpuarray.to_gpu(cpu_array) for cpu_array in cpu_arrays]
-    end = get_synchronized_time()
-    cpu_to_gpu_time = end - start
+    cpu_to_gpu_time, gpu_arrays = timed_send_arrays_to_gpu(cpu_arrays)
 
     # Carry out background correction
     operation_time = find_average_time(
@@ -110,13 +119,24 @@ def time_background_correction_and_transfer(gpu_arrays):
         N_RUNS,
     )
 
-    # Time retrieving the result
-    start = get_synchronized_time()
-    arr = gpu_arrays[0].get()
-    end = get_synchronized_time()
-    gpu_to_cpu_time = end - start
+    gpu_to_cpu_time = timed_get_array_from_gpu(gpu_arrays[0])
+    free_memory_pool(gpu_arrays)
 
     return cpu_to_gpu_time + operation_time + gpu_to_cpu_time
+
+
+def time_adding_arrays_and_transfer(cpu_arrays):
+
+    cpu_to_gpu_time, gpu_arrays = timed_send_arrays_to_gpu(cpu_arrays[:2])
+    operation_time = find_average_time(lambda: AddArraysKernel(*gpu_arrays), N_RUNS)
+    gpu_to_cpu_time = timed_get_array_from_gpu(gpu_arrays[0])
+    free_memory_pool(gpu_arrays)
+
+    return cpu_to_gpu_time + operation_time + gpu_to_cpu_time
+
+
+background_correction_times = []
+add_arrays_times = []
 
 
 for size in ARRAY_SIZES:
@@ -126,9 +146,10 @@ for size in ARRAY_SIZES:
     try:
 
         background_correction_times.append(
-            time_background_correction_and_transfer(gpu_arrays)
+            time_background_correction_and_transfer(cpu_arrays)
         )
-        free_memory_pool(gpu_arrays)
+
+        add_arrays_times.append(time_adding_arrays_and_transfer(cpu_arrays))
 
     except drv.MemoryError as e:
         print(e)
@@ -138,3 +159,4 @@ for size in ARRAY_SIZES:
 write_results_to_file(
     [LIB_NAME, "elementwise kernel"], BACKGROUND_CORRECTION, background_correction_times
 )
+write_results_to_file([LIB_NAME, "elementwise kernel"], ADD_ARRAYS, add_arrays_times)
