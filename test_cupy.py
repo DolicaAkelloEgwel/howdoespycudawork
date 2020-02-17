@@ -1,4 +1,5 @@
 import time
+from math import ceil
 
 import cupy as cp
 import numpy as np
@@ -21,6 +22,12 @@ from write_and_read_results import (
 )
 
 LIB_NAME = "cupy"
+
+
+def num_partitions_needed(cpu_arrays):
+
+    mem_needed = sum([arr.nbytes for arr in cpu_arrays])
+    return int(ceil(mem_needed * 1.0 / mempool.get_limit()))
 
 
 class CupyImplementation(ImagingTester):
@@ -112,15 +119,26 @@ class CupyImplementation(ImagingTester):
     def timed_add_arrays(self, runs):
         operation_time = 0
 
-        transfer_time = self.time_function(self._send_arrays_to_gpu)
+        num_partitions = num_partitions_needed(self.cpu_arrays)
 
-        for _ in range(runs):
-            operation_time += self.time_function(
-                lambda: self.add_arrays(*self.gpu_arrays[:2])
-            )
+        transfer_time = 0
+        operation_time = 0
 
-        transfer_time += self.time_function(self.gpu_arrays[0].get)
-        self.print_operation_times(operation_time, "adding", runs, transfer_time)
+        if num_partitions == 1:
+
+            transfer_time = self.time_function(self._send_arrays_to_gpu)
+
+            for _ in range(runs):
+                operation_time += self.time_function(
+                    lambda: self.add_arrays(*self.gpu_arrays[:2])
+                )
+
+            transfer_time += self.time_function(self.gpu_arrays[0].get)
+            self.print_operation_times(operation_time, "adding", runs, transfer_time)
+
+        else:
+            print(num_partitions)
+            print("Partitions needed for array of size", self.cpu_arrays[0].shape)
 
         return transfer_time + operation_time / runs
 
