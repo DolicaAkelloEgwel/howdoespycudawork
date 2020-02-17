@@ -1,0 +1,5 @@
+runs: 20
+sizes_subset: 4
+dtype: "float64"
+no_print: false
+test_parallel_numba: false

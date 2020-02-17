@@ -1,15 +1,25 @@
-import sys
+import os
 import time
+import yaml
 
 import numpy as np
 
 MINIMUM_PIXEL_VALUE = 1e-9
 MAXIMUM_PIXEL_VALUE = 1e9
 
-N_RUNS = int(sys.argv[1])
-SIZES_SUBSET = int(sys.argv[2])
-DTYPE = sys.argv[3]
-NO_PRINT = not bool(sys.argv[4])
+NO_PRINT = None
+N_RUNS = None
+SIZES_SUBSET = None
+DTYPE = None
+TEST_PARALLEL_NUMBA = None
+
+with open(os.path.join(os.getcwd(), "benchmarkparams.yaml")) as f:
+    params = yaml.load(f, Loader=yaml.FullLoader)
+    NO_PRINT = params["no_print"]
+    N_RUNS = params["runs"]
+    DTYPE = params["dtype"]
+    SIZES_SUBSET = params["sizes_subset"]
+    TEST_PARALLEL_NUMBA = params["test_parallel_numba"]
 
 
 def create_arrays(size_tuple, dtype):

@@ -10,6 +10,7 @@ from imagingtester import (
     DTYPE,
     create_arrays,
     SIZES_SUBSET,
+    TEST_PARALLEL_NUMBA,
 )
 from write_and_read_results import (
     write_results_to_file,
@@ -23,7 +24,11 @@ LIB_NAME = "numba"
 PARALLEL_VECTORISE_MODE = "parallel vectorise"
 CUDA_VECTORISE_MODE = "cuda vectorise"
 CUDA_JIT_MODE = "cuda jit"
+
 MODES = [PARALLEL_VECTORISE_MODE, CUDA_VECTORISE_MODE, CUDA_JIT_MODE]
+
+if not TEST_PARALLEL_NUMBA:
+    MODES = MODES[1:]
 
 
 @vectorize(["{0}({0},{0})".format(DTYPE)], target="cuda")
