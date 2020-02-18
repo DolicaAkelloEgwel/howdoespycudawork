@@ -180,7 +180,7 @@ class NumbaImplementation(ImagingTester):
 
         if n_partitions_needed == 1:
 
-            gpu_arrays = self._send_arrays_to_gpu(self.cpu_arrays)
+            # gpu_arrays = self._send_arrays_to_gpu(self.cpu_arrays)
 
             for _ in range(runs):
                 total_time += time_function(
@@ -194,7 +194,7 @@ class NumbaImplementation(ImagingTester):
             for i in range(n_partitions_needed):
 
                 cpu_array_segments = [split_array[i] for split_array in split_arrays]
-                gpu_arrays = self._send_arrays_to_gpu(self.cpu_arrays)
+                # gpu_arrays = self._send_arrays_to_gpu(self.cpu_arrays)
 
                 for _ in range(runs):
                     total_time += time_function(
@@ -206,7 +206,7 @@ class NumbaImplementation(ImagingTester):
         self.clear_cuda_memory()
 
         self.print_operation_times(total_time, BACKGROUND_CORRECTION, runs)
-        return total_time
+        return total_time / runs
 
     def clear_cuda_memory(self, split_arrays=None):
 
