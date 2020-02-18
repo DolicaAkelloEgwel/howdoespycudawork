@@ -100,6 +100,12 @@ def parallel_background_correction(data, dark, flat):
     return data
 
 
+def time_function(func):
+    start = time.time()
+    func()
+    return time.time() - start
+
+
 class NumbaImplementation(ImagingTester):
     def __init__(self, size, mode, dtype):
         super().__init__(size, dtype)
@@ -125,19 +131,11 @@ class NumbaImplementation(ImagingTester):
         self.add_arrays(*warm_up_arrays[:2])
         self.background_correction(*warm_up_arrays)
 
-    @staticmethod
-    def time_function(func):
-        start = time.time()
-        func()
-        return time.time() - start
-
     def timed_add_arrays(self, runs):
         total_time = 0
 
         for _ in range(runs):
-            total_time += self.time_function(
-                lambda: self.add_arrays(*self.cpu_arrays[:2])
-            )
+            total_time += time_function(lambda: self.add_arrays(*self.cpu_arrays[:2]))
         self.print_operation_times(total_time, ADD_ARRAYS, runs)
         return total_time / runs
 
@@ -145,7 +143,7 @@ class NumbaImplementation(ImagingTester):
         total_time = 0
 
         for _ in range(runs):
-            total_time += self.time_function(
+            total_time += time_function(
                 lambda: self.background_correction(*self.cpu_arrays)
             )
         self.print_operation_times(total_time, BACKGROUND_CORRECTION, runs)
