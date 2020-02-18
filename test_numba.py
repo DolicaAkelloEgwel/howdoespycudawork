@@ -1,3 +1,5 @@
+from math import ceil
+
 from numba import vectorize, cuda
 import numba
 import time
@@ -11,6 +13,8 @@ from imagingtester import (
     create_arrays,
     SIZES_SUBSET,
     TEST_PARALLEL_NUMBA,
+    memory_needed_for_array,
+    partition_arrays,
 )
 from write_and_read_results import (
     write_results_to_file,
@@ -29,6 +33,17 @@ MODES = [PARALLEL_VECTORISE_MODE, CUDA_VECTORISE_MODE, CUDA_JIT_MODE]
 
 if not TEST_PARALLEL_NUMBA:
     MODES = MODES[1:]
+
+FREE_BYTES = 0
+
+with cuda.gpus.lst[0] as gpu:
+    meminfo = cuda.current_context().get_memory_info()
+    print("%s, free: %s bytes, total, %s bytes" % (gpu, meminfo[0], meminfo[1]))
+    FREE_BYTES = meminfo[0]
+
+
+def num_partitions_needed(cpu_arrays):
+    return int(ceil(memory_needed_for_array(cpu_arrays) * 1.0 / FREE_BYTES))
 
 
 @vectorize(["{0}({0},{0})".format(DTYPE)], target="cuda")
@@ -132,20 +147,57 @@ class NumbaImplementation(ImagingTester):
         self.background_correction(*warm_up_arrays)
 
     def timed_add_arrays(self, runs):
-        total_time = 0
 
-        for _ in range(runs):
-            total_time += time_function(lambda: self.add_arrays(*self.cpu_arrays[:2]))
+        total_time = 0
+        n_partitions_needed = num_partitions_needed(self.cpu_arrays[:2])
+
+        if n_partitions_needed == 1:
+            for _ in range(runs):
+                total_time += time_function(
+                    lambda: self.add_arrays(*self.cpu_arrays[:2])
+                )
+
+        else:
+
+            split_arrays = partition_arrays(self.cpu_arrays[:2], n_partitions_needed)
+
+            for i in range(n_partitions_needed):
+
+                cpu_array_segments = [split_array[i] for split_array in split_arrays]
+
+                for _ in range(runs):
+                    total_time += time_function(
+                        lambda: self.add_arrays(*cpu_array_segments)
+                    )
+
         self.print_operation_times(total_time, ADD_ARRAYS, runs)
         return total_time / runs
 
     def timed_background_correction(self, runs):
         total_time = 0
 
-        for _ in range(runs):
-            total_time += time_function(
-                lambda: self.background_correction(*self.cpu_arrays)
-            )
+        n_partitions_needed = num_partitions_needed(self.cpu_arrays)
+
+        if n_partitions_needed == 1:
+
+            for _ in range(runs):
+                total_time += time_function(
+                    lambda: self.background_correction(*self.cpu_arrays)
+                )
+
+        else:
+
+            split_arrays = partition_arrays(self.cpu_arrays, n_partitions_needed)
+
+            for i in range(n_partitions_needed):
+
+                cpu_array_segments = [split_array[i] for split_array in split_arrays]
+
+                for _ in range(runs):
+                    total_time += time_function(
+                        lambda: self.background_correction(*cpu_array_segments)
+                    )
+
         self.print_operation_times(total_time, BACKGROUND_CORRECTION, runs)
         return total_time
 
@@ -167,8 +219,12 @@ for mode in MODES:
             background_correction.append(avg_bc)
 
         except numba.cuda.cudadrv.driver.CudaAPIError as e:
-            print("Unable to carry out calculation on array of size", size)
-            print(e)
+            with cuda.gpus.lst[0] as gpu:
+                meminfo = cuda.current_context().get_memory_info()
+                print(
+                    "%s, free: %s bytes, total, %s bytes"
+                    % (gpu, meminfo[0], meminfo[1])
+                )
             break
 
     write_results_to_file([LIB_NAME, mode], ADD_ARRAYS, add_arrays)
