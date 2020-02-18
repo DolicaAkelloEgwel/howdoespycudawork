@@ -63,11 +63,11 @@ class CupyImplementation(ImagingTester):
         )
         self.add_arrays(*warm_up_arrays[:2])
 
-    def free_memory_pool(self, gpu_arrays):
+    def free_memory_pool(self, arrays):
         """
         Delete the existing GPU arrays so that successive calls to `_send_arrays_to_gpu` don't cause any problems.
         """
-        for arr in gpu_arrays:
+        for arr in arrays:
             del arr
             arr = None
         mempool.free_all_blocks()
@@ -176,10 +176,7 @@ class CupyImplementation(ImagingTester):
 
                 transfer_time += self.time_function(gpu_arrays[0].get)
 
-                for array in split_cpu_arrays:
-                    del array
-                    array = None
-                self.free_memory_pool(gpu_arrays)
+                self.free_memory_pool(split_cpu_arrays + gpu_arrays)
 
         self.print_operation_times(operation_time, "adding", runs, transfer_time)
 
@@ -242,11 +239,7 @@ class CupyImplementation(ImagingTester):
 
                 transfer_time += self.time_function(gpu_arrays[0].get)
 
-                for array in split_cpu_arrays:
-                    del array
-                    array = None
-
-                self.free_memory_pool(gpu_arrays)
+                self.free_memory_pool(split_cpu_arrays + gpu_arrays)
 
         self.print_operation_times(
             operation_time, "background correction", runs, transfer_time
