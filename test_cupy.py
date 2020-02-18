@@ -1,3 +1,4 @@
+import sys
 import time
 from math import ceil
 
@@ -26,7 +27,7 @@ LIB_NAME = "cupy"
 
 
 def memory_needed_for_array(cpu_arrays):
-    return sum([arr.nbytes for arr in cpu_arrays])
+    return sum([sys.getsizeof(arr) for arr in cpu_arrays])
 
 
 def num_partitions_needed(cpu_arrays):
@@ -90,6 +91,8 @@ class CupyImplementation(ImagingTester):
         """
         Transfer the arrays to the GPU using pinned memory.
         """
+        mem_needed = memory_needed_for_array(cpu_arrays)
+
         gpu_arrays = []
 
         for i in range(len(cpu_arrays)):
@@ -105,8 +108,10 @@ class CupyImplementation(ImagingTester):
         """
         Transfer the arrays to the GPU without using pinned memory.
         """
+        mem_needed = memory_needed_for_array(cpu_arrays)
 
-        return [cp.asarray(cpu_array) for cpu_array in cpu_arrays]
+        gpu_arrays = [cp.asarray(cpu_array) for cpu_array in cpu_arrays]
+        return gpu_arrays
 
     @staticmethod
     def time_function(func):
@@ -270,17 +275,15 @@ for use_pinned_memory in [True, False]:
 
     for size in ARRAY_SIZES[:SIZES_SUBSET]:
 
-        try:
-            imaging_obj = CupyImplementation(size, DTYPE, use_pinned_memory)
+        imaging_obj = CupyImplementation(size, DTYPE, use_pinned_memory)
 
-            avg_add = imaging_obj.timed_add_arrays(N_RUNS)
-            avg_bc = imaging_obj.timed_background_correction(N_RUNS)
+        cp.cuda.runtime.deviceSynchronize()
+        avg_add = imaging_obj.timed_add_arrays(N_RUNS)
+        cp.cuda.runtime.deviceSynchronize()
+        avg_bc = imaging_obj.timed_background_correction(N_RUNS)
 
-            add_arrays.append(avg_add)
-            background_correction.append(avg_bc)
-
-        except cp.cuda.memory.OutOfMemoryError:
-            break
+        add_arrays.append(avg_add)
+        background_correction.append(avg_bc)
 
     if use_pinned_memory:
         memory_string = "with pinned memory"
