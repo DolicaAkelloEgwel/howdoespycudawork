@@ -5,7 +5,7 @@ import yaml
 import numpy as np
 
 MINIMUM_PIXEL_VALUE = 1e-9
-MAXIMUM_PIXEL_VALUE = 1e9
+MAXIMUM_PIXEL_VALUE = 200  # make random easier
 
 NO_PRINT = None
 N_RUNS = None
