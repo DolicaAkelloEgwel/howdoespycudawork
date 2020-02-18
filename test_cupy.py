@@ -1,6 +1,7 @@
 import time
 from math import ceil
 
+import cupy
 import cupy as cp
 import numpy as np
 
@@ -24,10 +25,18 @@ from write_and_read_results import (
 LIB_NAME = "cupy"
 
 
+def memory_needed_for_array(cpu_arrays):
+    return sum([arr.nbytes for arr in cpu_arrays])
+
+
 def num_partitions_needed(cpu_arrays):
 
-    mem_needed = sum([arr.nbytes for arr in cpu_arrays])
-    return int(ceil(mem_needed * 1.0 / mempool.get_limit()))
+    return int(ceil(memory_needed_for_array(cpu_arrays) * 1.0 / mempool.total_bytes()))
+
+
+def get_synchronized_time():
+    cp.cuda.runtime.deviceSynchronize()
+    return time.time()
 
 
 class CupyImplementation(ImagingTester):
@@ -54,11 +63,13 @@ class CupyImplementation(ImagingTester):
         )
         self.add_arrays(*warm_up_arrays[:2])
 
-    def free_memory_pool(self):
+    def free_memory_pool(self, gpu_arrays):
         """
         Delete the existing GPU arrays so that successive calls to `_send_arrays_to_gpu` don't cause any problems.
         """
-        del self.gpu_arrays
+        for arr in gpu_arrays:
+            del arr
+            arr = None
         mempool.free_all_blocks()
 
     @staticmethod
@@ -75,24 +86,27 @@ class CupyImplementation(ImagingTester):
         src[...] = cpu_array
         return src
 
-    def _send_arrays_to_gpu_with_pinned_memory(self):
+    def _send_arrays_to_gpu_with_pinned_memory(self, cpu_arrays):
         """
         Transfer the arrays to the GPU using pinned memory.
         """
-        self.gpu_arrays = []
+        gpu_arrays = []
 
-        for i in range(len(self.cpu_arrays)):
-            pinned_memory = self._create_pinned_memory(self.cpu_arrays[i])
+        for i in range(len(cpu_arrays)):
+            pinned_memory = self._create_pinned_memory(cpu_arrays[i])
             array_stream = cp.cuda.Stream(non_blocking=True)
             gpu_array = cp.empty(pinned_memory.shape, dtype=self.dtype)
             gpu_array.set(pinned_memory, stream=array_stream)
-            self.gpu_arrays.append(gpu_array)
+            gpu_arrays.append(gpu_array)
 
-    def _send_arrays_to_gpu_without_pinned_memory(self):
+        return gpu_arrays
+
+    def _send_arrays_to_gpu_without_pinned_memory(self, cpu_arrays):
         """
         Transfer the arrays to the GPU without using pinned memory.
         """
-        self.gpu_arrays = [cp.asarray(cpu_array) for cpu_array in self.cpu_arrays]
+
+        return [cp.asarray(cpu_array) for cpu_array in cpu_arrays]
 
     @staticmethod
     def time_function(func):
@@ -117,28 +131,57 @@ class CupyImplementation(ImagingTester):
         cp.add(arr1, arr2)
 
     def timed_add_arrays(self, runs):
-        operation_time = 0
 
-        num_partitions = num_partitions_needed(self.cpu_arrays)
+        n_partitions_needed = num_partitions_needed(self.cpu_arrays)
 
         transfer_time = 0
         operation_time = 0
 
-        if num_partitions == 1:
+        if n_partitions_needed == 1:
 
-            transfer_time = self.time_function(self._send_arrays_to_gpu)
+            start = get_synchronized_time()
+            gpu_arrays = self._send_arrays_to_gpu(self.cpu_arrays[:2])
+            end = get_synchronized_time()
+            transfer_time = end - start
 
             for _ in range(runs):
                 operation_time += self.time_function(
-                    lambda: self.add_arrays(*self.gpu_arrays[:2])
+                    lambda: self.add_arrays(*gpu_arrays[:2])
                 )
 
-            transfer_time += self.time_function(self.gpu_arrays[0].get)
-            self.print_operation_times(operation_time, "adding", runs, transfer_time)
+            transfer_time += self.time_function(gpu_arrays[0].get)
+
+            self.free_memory_pool(gpu_arrays)
 
         else:
-            print(num_partitions)
-            print("Partitions needed for array of size", self.cpu_arrays[0].shape)
+
+            split_arrays = [
+                np.array_split(cpu_array, n_partitions_needed)
+                for cpu_array in self.cpu_arrays
+            ]
+
+            for i in range(n_partitions_needed):
+
+                split_cpu_arrays = [split_arrays[k][i] for k in range(2)]
+
+                start = get_synchronized_time()
+                gpu_arrays = self._send_arrays_to_gpu(split_cpu_arrays)
+                end = get_synchronized_time()
+                transfer_time += end - start
+
+                for _ in range(runs):
+                    operation_time += self.time_function(
+                        lambda: self.add_arrays(*gpu_arrays[:2])
+                    )
+
+                transfer_time += self.time_function(gpu_arrays[0].get)
+
+                for array in split_cpu_arrays:
+                    del array
+                    array = None
+                self.free_memory_pool(gpu_arrays)
+
+        self.print_operation_times(operation_time, "adding", runs, transfer_time)
 
         return transfer_time + operation_time / runs
 
@@ -151,23 +194,63 @@ class CupyImplementation(ImagingTester):
         cp.clip(data, clip_min, clip_max, out=data)
 
     def timed_background_correction(self, runs):
+
+        n_partitions_needed = num_partitions_needed(self.cpu_arrays)
+
         operation_time = 0
+        transfer_time = 0
 
-        transfer_time = self.time_function(self._send_arrays_to_gpu)
-        data, dark, flat = self.gpu_arrays
+        if n_partitions_needed == 1:
 
-        for _ in range(runs):
-            operation_time += self.time_function(
-                lambda: self.background_correction(
-                    data, dark, flat, MINIMUM_PIXEL_VALUE, MAXIMUM_PIXEL_VALUE
+            start = get_synchronized_time()
+            gpu_arrays = self._send_arrays_to_gpu(self.cpu_arrays)
+            end = get_synchronized_time()
+            transfer_time = end - start
+
+            for _ in range(runs):
+                operation_time += self.time_function(
+                    lambda: self.background_correction(
+                        *gpu_arrays, MINIMUM_PIXEL_VALUE, MAXIMUM_PIXEL_VALUE
+                    )
                 )
-            )
 
-        transfer_time += self.time_function(data.get)
+            transfer_time += self.time_function(gpu_arrays[0].get)
+            self.free_memory_pool(gpu_arrays)
+
+        else:
+
+            split_arrays = [
+                np.array_split(cpu_array, n_partitions_needed)
+                for cpu_array in self.cpu_arrays
+            ]
+
+            for i in range(n_partitions_needed):
+
+                split_cpu_arrays = [split_arrays[k][i] for k in range(3)]
+
+                start = get_synchronized_time()
+                gpu_arrays = self._send_arrays_to_gpu(split_cpu_arrays)
+                end = get_synchronized_time()
+                transfer_time += end - start
+
+                for _ in range(runs):
+                    operation_time += self.time_function(
+                        lambda: self.background_correction(
+                            *gpu_arrays, MINIMUM_PIXEL_VALUE, MAXIMUM_PIXEL_VALUE
+                        )
+                    )
+
+                transfer_time += self.time_function(gpu_arrays[0].get)
+
+                for array in split_cpu_arrays:
+                    del array
+                    array = None
+
+                self.free_memory_pool(gpu_arrays)
+
         self.print_operation_times(
             operation_time, "background correction", runs, transfer_time
         )
-
         return transfer_time + operation_time / runs
 
 
@@ -193,24 +276,18 @@ for use_pinned_memory in [True, False]:
     background_correction = []
 
     for size in ARRAY_SIZES[:SIZES_SUBSET]:
-        try:
 
+        try:
             imaging_obj = CupyImplementation(size, DTYPE, use_pinned_memory)
 
             avg_add = imaging_obj.timed_add_arrays(N_RUNS)
-            imaging_obj.free_memory_pool()
-
             avg_bc = imaging_obj.timed_background_correction(N_RUNS)
-            imaging_obj.free_memory_pool()
-            del imaging_obj
 
-        except cp.cuda.memory.OutOfMemoryError as e:
-            print(e)
-            print("Unable to make GPU arrays with size", size)
+            add_arrays.append(avg_add)
+            background_correction.append(avg_bc)
+
+        except cp.cuda.memory.OutOfMemoryError:
             break
-
-        add_arrays.append(avg_add)
-        background_correction.append(avg_bc)
 
     if use_pinned_memory:
         memory_string = "with pinned memory"
