@@ -1,17 +1,20 @@
 import os
 import time
+from math import ceil
+
 import yaml
 
 import numpy as np
 
 MINIMUM_PIXEL_VALUE = 1e-9
-MAXIMUM_PIXEL_VALUE = 200  # make random easier
+MAXIMUM_PIXEL_VALUE = 200  # this isn't true but it makes random easier
 
 NO_PRINT = None
 N_RUNS = None
 SIZES_SUBSET = None
 DTYPE = None
 TEST_PARALLEL_NUMBA = None
+USE_NONPINNED_MEMORY = None
 
 with open(os.path.join(os.getcwd(), "benchmarkparams.yaml")) as f:
     params = yaml.load(f, Loader=yaml.FullLoader)
@@ -20,6 +23,7 @@ with open(os.path.join(os.getcwd(), "benchmarkparams.yaml")) as f:
     DTYPE = params["dtype"]
     SIZES_SUBSET = params["sizes_subset"]
     TEST_PARALLEL_NUMBA = params["test_parallel_numba"]
+    USE_NONPINNED_MEMORY = params["use_nonpinned_memory"]
 
 
 def create_arrays(size_tuple, dtype):
@@ -106,3 +110,7 @@ def memory_needed_for_array(cpu_arrays):
 
 def partition_arrays(cpu_arrays, n_partitions):
     return [np.array_split(cpu_array, n_partitions) for cpu_array in cpu_arrays]
+
+
+def num_partitions_needed(cpu_arrays, free_bytes):
+    return int(ceil(memory_needed_for_array(cpu_arrays) * 1.0 / free_bytes))

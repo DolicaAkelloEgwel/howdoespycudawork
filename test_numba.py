@@ -1,7 +1,4 @@
-from math import ceil
-
 from numba import vectorize, cuda
-import numba
 import time
 
 from imagingtester import (
@@ -13,9 +10,9 @@ from imagingtester import (
     create_arrays,
     SIZES_SUBSET,
     TEST_PARALLEL_NUMBA,
-    memory_needed_for_array,
     partition_arrays,
 )
+from imagingtester import num_partitions_needed as number_of_partitions_needed
 from write_and_read_results import (
     write_results_to_file,
     ADD_ARRAYS,
@@ -36,17 +33,15 @@ if not TEST_PARALLEL_NUMBA:
 
 
 def get_free_bytes():
-    with cuda.gpus.lst[0] as gpu:
-        meminfo = cuda.current_context().get_memory_info()
-        print("%s, free: %s bytes, total, %s bytes" % (gpu, meminfo[0], meminfo[1]))
-        return meminfo[0]
+    meminfo = cuda.current_context().get_memory_info()
+    return meminfo[0]
 
 
 FREE_BYTES = get_free_bytes()
 
-
-def num_partitions_needed(cpu_arrays):
-    return int(ceil(memory_needed_for_array(cpu_arrays) * 1.0 / FREE_BYTES))
+num_partitions_needed = lambda cpu_arrays: number_of_partitions_needed(
+    cpu_arrays, FREE_BYTES
+)
 
 
 @vectorize(["{0}({0},{0})".format(DTYPE)], target="cuda")
@@ -119,8 +114,10 @@ def parallel_background_correction(data, dark, flat):
 
 
 def time_function(func):
+    cuda.synchronize()
     start = time.time()
     func()
+    cuda.synchronize()
     return time.time() - start
 
 
@@ -183,6 +180,8 @@ class NumbaImplementation(ImagingTester):
 
         if n_partitions_needed == 1:
 
+            gpu_arrays = self._send_arrays_to_gpu(self.cpu_arrays)
+
             for _ in range(runs):
                 total_time += time_function(
                     lambda: self.background_correction(*self.cpu_arrays)
@@ -195,6 +194,7 @@ class NumbaImplementation(ImagingTester):
             for i in range(n_partitions_needed):
 
                 cpu_array_segments = [split_array[i] for split_array in split_arrays]
+                gpu_arrays = self._send_arrays_to_gpu(self.cpu_arrays)
 
                 for _ in range(runs):
                     total_time += time_function(
@@ -202,6 +202,7 @@ class NumbaImplementation(ImagingTester):
                     )
 
             self.clear_cuda_memory(split_arrays)
+
         self.clear_cuda_memory()
 
         self.print_operation_times(total_time, BACKGROUND_CORRECTION, runs)
@@ -226,15 +227,20 @@ for mode in MODES:
 
     for size in ARRAY_SIZES[:SIZES_SUBSET]:
 
-        imaging_obj = NumbaImplementation(size, mode, DTYPE)
+        try:
+            imaging_obj = NumbaImplementation(size, mode, DTYPE)
 
-        cuda.synchronize()
-        avg_add = imaging_obj.timed_add_arrays(N_RUNS)
-        cuda.synchronize()
-        avg_bc = imaging_obj.timed_background_correction(N_RUNS)
+            cuda.synchronize()
+            avg_add = imaging_obj.timed_add_arrays(N_RUNS)
+            cuda.synchronize()
+            avg_bc = imaging_obj.timed_background_correction(N_RUNS)
 
-        add_arrays.append(avg_add)
-        background_correction.append(avg_bc)
+            add_arrays.append(avg_add)
+            background_correction.append(avg_bc)
+
+        except cuda.cudadrv.driver.CudaAPIError:
+            print("Can't operate on arrays with size", size)
+            break
 
     write_results_to_file([LIB_NAME, mode], ADD_ARRAYS, add_arrays)
     write_results_to_file(
