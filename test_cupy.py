@@ -1,8 +1,6 @@
-import sys
 import time
 from math import ceil
 
-import cupy
 import cupy as cp
 import numpy as np
 
@@ -15,6 +13,8 @@ from imagingtester import (
     SIZES_SUBSET,
     DTYPE,
     NO_PRINT,
+    memory_needed_for_array,
+    partition_arrays,
 )
 from write_and_read_results import (
     write_results_to_file,
@@ -24,10 +24,6 @@ from write_and_read_results import (
 )
 
 LIB_NAME = "cupy"
-
-
-def memory_needed_for_array(cpu_arrays):
-    return sum([arr.nbytes for arr in cpu_arrays])
 
 
 def num_partitions_needed(cpu_arrays):
@@ -159,17 +155,14 @@ class CupyImplementation(ImagingTester):
 
         else:
 
-            split_arrays = [
-                np.array_split(cpu_array, n_partitions_needed)
-                for cpu_array in self.cpu_arrays
-            ]
+            split_arrays = partition_arrays(self.cpu_arrays[:2], n_partitions_needed)
 
             print(n_partitions_needed)
             print(split_arrays[0][0].shape)
 
             for i in range(n_partitions_needed):
 
-                split_cpu_arrays = [split_arrays[k][i] for k in range(2)]
+                split_cpu_arrays = [split_array[i] for split_array in split_arrays]
 
                 try:
                     start = get_synchronized_time()
@@ -238,14 +231,11 @@ class CupyImplementation(ImagingTester):
 
         else:
 
-            split_arrays = [
-                np.array_split(cpu_array, n_partitions_needed)
-                for cpu_array in self.cpu_arrays
-            ]
+            split_arrays = partition_arrays(self.cpu_arrays, n_partitions_needed)
 
             for i in range(n_partitions_needed):
 
-                split_cpu_arrays = [split_arrays[k][i] for k in range(3)]
+                split_cpu_arrays = [split_array[i] for split_array in split_arrays]
 
                 try:
                     start = get_synchronized_time()

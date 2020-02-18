@@ -98,3 +98,11 @@ def print_array_creation_time(time):
     if NO_PRINT:
         return
     print("Array creation time: %ss" % time)
+
+
+def memory_needed_for_array(cpu_arrays):
+    return sum([arr.nbytes for arr in cpu_arrays])
+
+
+def partition_arrays(cpu_arrays, n_partitions):
+    return [np.array_split(cpu_array, n_partitions) for cpu_array in cpu_arrays]
