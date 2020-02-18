@@ -34,12 +34,15 @@ MODES = [PARALLEL_VECTORISE_MODE, CUDA_VECTORISE_MODE, CUDA_JIT_MODE]
 if not TEST_PARALLEL_NUMBA:
     MODES = MODES[1:]
 
-FREE_BYTES = 0
 
-with cuda.gpus.lst[0] as gpu:
-    meminfo = cuda.current_context().get_memory_info()
-    print("%s, free: %s bytes, total, %s bytes" % (gpu, meminfo[0], meminfo[1]))
-    FREE_BYTES = meminfo[0]
+def get_free_bytes():
+    with cuda.gpus.lst[0] as gpu:
+        meminfo = cuda.current_context().get_memory_info()
+        print("%s, free: %s bytes, total, %s bytes" % (gpu, meminfo[0], meminfo[1]))
+        return meminfo[0]
+
+
+FREE_BYTES = get_free_bytes()
 
 
 def num_partitions_needed(cpu_arrays):
@@ -162,14 +165,14 @@ class NumbaImplementation(ImagingTester):
             split_arrays = partition_arrays(self.cpu_arrays[:2], n_partitions_needed)
 
             for i in range(n_partitions_needed):
-
                 cpu_array_segments = [split_array[i] for split_array in split_arrays]
-
                 for _ in range(runs):
                     total_time += time_function(
                         lambda: self.add_arrays(*cpu_array_segments)
                     )
 
+            self.clear_cuda_memory(split_arrays)
+        self.clear_cuda_memory()
         self.print_operation_times(total_time, ADD_ARRAYS, runs)
         return total_time / runs
 
@@ -198,8 +201,22 @@ class NumbaImplementation(ImagingTester):
                         lambda: self.background_correction(*cpu_array_segments)
                     )
 
+            self.clear_cuda_memory(split_arrays)
+        self.clear_cuda_memory()
+
         self.print_operation_times(total_time, BACKGROUND_CORRECTION, runs)
         return total_time
+
+    def clear_cuda_memory(self, split_arrays=None):
+
+        print("Free bytes before clearing memory", get_free_bytes())
+
+        if split_arrays is not None:
+            for array in split_arrays:
+                del array
+                array = None
+        cuda.current_context().deallocations.clear()
+        print("Free bytes after clearing memory", get_free_bytes())
 
 
 for mode in MODES:
@@ -209,23 +226,15 @@ for mode in MODES:
 
     for size in ARRAY_SIZES[:SIZES_SUBSET]:
 
-        try:
-            imaging_obj = NumbaImplementation(size, mode, DTYPE)
+        imaging_obj = NumbaImplementation(size, mode, DTYPE)
 
-            avg_add = imaging_obj.timed_add_arrays(N_RUNS)
-            avg_bc = imaging_obj.timed_background_correction(N_RUNS)
+        cuda.synchronize()
+        avg_add = imaging_obj.timed_add_arrays(N_RUNS)
+        cuda.synchronize()
+        avg_bc = imaging_obj.timed_background_correction(N_RUNS)
 
-            add_arrays.append(avg_add)
-            background_correction.append(avg_bc)
-
-        except numba.cuda.cudadrv.driver.CudaAPIError as e:
-            with cuda.gpus.lst[0] as gpu:
-                meminfo = cuda.current_context().get_memory_info()
-                print(
-                    "%s, free: %s bytes, total, %s bytes"
-                    % (gpu, meminfo[0], meminfo[1])
-                )
-            break
+        add_arrays.append(avg_add)
+        background_correction.append(avg_bc)
 
     write_results_to_file([LIB_NAME, mode], ADD_ARRAYS, add_arrays)
     write_results_to_file(
