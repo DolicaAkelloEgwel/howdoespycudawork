@@ -86,7 +86,7 @@ def add_arrays(arr1, arr2):
     """
     Add two arrays. Guaranteed to be slower on the GPU as it's a simple operation.
     """
-    cp.add(arr1, arr2)
+    arr1 += arr2
 
 
 def double_array(arr1):
@@ -287,6 +287,8 @@ def print_memory_metrics():
 all_one = cp.ones((1, 1, 1))
 double_array(all_one)
 assert cp.all(all_one == 2)
+add_arrays(all_one, all_one)
+assert cp.all(all_one == 4)
 
 for use_pinned_memory in pinned_memory_mode:
 
