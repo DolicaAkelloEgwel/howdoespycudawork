@@ -16,6 +16,7 @@ from imagingtester import (
     USE_NONPINNED_MEMORY,
 )
 from imagingtester import num_partitions_needed as number_of_partitions_needed
+from test_numpy import numpy_background_correction
 from write_and_read_results import (
     write_results_to_file,
     ADD_ARRAYS,
@@ -91,7 +92,7 @@ def _send_arrays_to_gpu_without_pinned_memory(cpu_arrays):
     return gpu_arrays
 
 
-def add_arrays(arr1, arr2):
+def cupy_add_arrays(arr1, arr2):
     """
     Add two arrays. Guaranteed to be slower on the GPU as it's a simple operation.
     """
@@ -105,7 +106,7 @@ def double_array(arr1):
     arr1 *= 2
 
 
-def background_correction(
+def cupy_background_correction(
     data, dark, flat, clip_min=MINIMUM_PIXEL_VALUE, clip_max=MAXIMUM_PIXEL_VALUE
 ):
     """
@@ -117,7 +118,7 @@ def background_correction(
     :param clip_max: Maximum clipping value.
     """
     norm_divide = np.subtract(flat, dark)
-    norm_divide[norm_divide == 0] = clip_min
+    norm_divide[norm_divide == 0] = MINIMUM_PIXEL_VALUE
     cp.subtract(data, dark, out=data)
     cp.true_divide(data, norm_divide, out=data)
     cp.clip(data, clip_min, clip_max, out=data)
@@ -143,8 +144,8 @@ class CupyImplementation(ImagingTester):
         warm_up_arrays = [
             cp.asarray(cpu_array) for cpu_array in create_arrays((1, 1, 1), self.dtype)
         ]
-        background_correction(*warm_up_arrays)
-        add_arrays(*warm_up_arrays[:2])
+        cupy_background_correction(*warm_up_arrays)
+        cupy_add_arrays(*warm_up_arrays[:2])
 
     def _send_arrays_to_gpu_with_pinned_memory(self, cpu_arrays):
         """
@@ -257,8 +258,21 @@ mempool.malloc(mempool.get_limit())
 all_one = cp.ones((1, 1, 1))
 double_array(all_one)
 assert cp.all(all_one == 2)
-add_arrays(all_one, all_one)
+cupy_add_arrays(all_one, all_one)
 assert cp.all(all_one == 4)
+
+# Checking the two background corrections get the same result
+random_test_arrays = [
+    cp.random.uniform(low=0.0, high=20, size=(5, 5, 5)) for _ in range(3)
+]
+cp_data, cp_dark, cp_flat = [
+    cp.random.uniform(low=0.0, high=20, size=(5, 5, 5)) for _ in range(3)
+]
+np_data, np_dark, np_flat = [cp_arr.get() for cp_arr in random_test_arrays]
+cupy_background_correction(cp_data, cp_dark, cp_flat)
+numpy_background_correction(np_data, np_dark, np_flat)
+assert np.all_close(np_data, cp_data.get())
+
 
 for use_pinned_memory in pinned_memory_mode:
 
@@ -273,10 +287,10 @@ for use_pinned_memory in pinned_memory_mode:
         try:
 
             avg_add = imaging_obj.timed_imaging_operation(
-                N_RUNS, add_arrays, "adding", 2
+                N_RUNS, cupy_add_arrays, "adding", 2
             )
             avg_bc = imaging_obj.timed_imaging_operation(
-                N_RUNS, background_correction, "background correction", 3
+                N_RUNS, cupy_background_correction, "background correction", 3
             )
 
             if avg_add > 0:
