@@ -89,6 +89,10 @@ def add_arrays(arr1, arr2):
     cp.add(arr1, arr2)
 
 
+def double_array(arr1):
+    arr1 *= 2
+
+
 def background_correction(data, dark, flat, clip_min, clip_max):
     norm_divide = np.subtract(flat, dark)
     norm_divide[norm_divide == 0] = clip_min
@@ -279,11 +283,16 @@ def print_memory_metrics():
     print("Used bytes:", mempool.used_bytes(), "/ Total bytes:", mempool.total_bytes())
 
 
+# Checking that cupy will change the value of the array
+all_one = cp.ones((1, 1, 1))
+double_array(all_one)
+assert cp.all(all_one == 2)
+
 for use_pinned_memory in pinned_memory_mode:
 
     # Create empty lists for storing results
-    add_arrays = []
-    background_correction = []
+    add_arrays_results = []
+    background_correction_results = []
 
     for size in ARRAY_SIZES[:SIZES_SUBSET]:
 
@@ -296,8 +305,8 @@ for use_pinned_memory in pinned_memory_mode:
             cp.cuda.runtime.deviceSynchronize()
             avg_bc = imaging_obj.timed_background_correction(N_RUNS)
 
-            add_arrays.append(avg_add)
-            background_correction.append(avg_bc)
+            add_arrays_results.append(avg_add)
+            background_correction_results.append(avg_bc)
 
         except cp.cuda.memory.OutOfMemoryError:
             break
@@ -307,7 +316,7 @@ for use_pinned_memory in pinned_memory_mode:
     else:
         memory_string = "without pinned memory"
 
-    write_results_to_file([LIB_NAME, memory_string], ADD_ARRAYS, add_arrays)
+    write_results_to_file([LIB_NAME, memory_string], ADD_ARRAYS, add_arrays_results)
     write_results_to_file(
-        [LIB_NAME, memory_string], BACKGROUND_CORRECTION, background_correction
+        [LIB_NAME, memory_string], BACKGROUND_CORRECTION, background_correction_results
     )
