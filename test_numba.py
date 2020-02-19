@@ -114,17 +114,6 @@ def parallel_background_correction(data, dark, flat):
     return data
 
 
-def get_synchronized_time():
-    cuda.synchronize()
-    return time.time()
-
-
-def time_function(func):
-    start = get_synchronized_time()
-    func()
-    return get_synchronized_time() - start
-
-
 class NumbaImplementation(ImagingTester):
     def __init__(self, size, dtype):
         super().__init__(size, dtype)
@@ -139,6 +128,15 @@ class NumbaImplementation(ImagingTester):
         warm_up_arrays = create_arrays((1, 1, 1), self.dtype)
         add_arrays(*warm_up_arrays[:2])
         background_correction(*warm_up_arrays)
+
+    def get_synchronized_time(self):
+        self.stream.synchronize()
+        return time.time()
+
+    def time_function(self, func):
+        start = self.get_synchronized_time()
+        func()
+        return self.get_synchronized_time() - start
 
     def clear_cuda_memory(self, split_arrays=[]):
 
@@ -187,20 +185,20 @@ class NumbaImplementation(ImagingTester):
             cpu_result_array = np.empty_like(self.cpu_arrays[0])
 
             # Time transfer from CPU to GPU
-            start = get_synchronized_time()
+            start = self.get_synchronized_time()
             gpu_arrays, gpu_result_array = self._send_arrays_to_gpu(
                 self.cpu_arrays[:n_arrs_needed], cpu_result_array
             )
-            transfer_time += get_synchronized_time() - start
+            transfer_time += self.get_synchronized_time() - start
 
             # Repeat the operation
             for _ in range(runs):
-                operation_time += time_function(
+                operation_time += self.time_function(
                     lambda: alg(*gpu_arrays[:n_arrs_needed])
                 )
 
             # Time the transfer from GPU to CPU
-            transfer_time += time_function(
+            transfer_time += self.time_function(
                 lambda: gpu_result_array.copy_to_host(cpu_result_array, self.stream)
             )
 
@@ -226,11 +224,11 @@ class NumbaImplementation(ImagingTester):
                 try:
 
                     # Time transferring the segments to the GPU
-                    start = get_synchronized_time()
+                    start = self.get_synchronized_time()
                     gpu_arrays, gpu_result_array = self._send_arrays_to_gpu(
                         split_cpu_arrays, cpu_result_array
                     )
-                    transfer_time += get_synchronized_time() - start
+                    transfer_time += self.get_synchronized_time() - start
 
                 except cuda.cudadrv.driver.CudaAPIError:
 
@@ -251,11 +249,11 @@ class NumbaImplementation(ImagingTester):
 
                 # Carry out the operation on the slices
                 for _ in range(runs):
-                    operation_time += time_function(
+                    operation_time += self.time_function(
                         lambda: alg(*gpu_arrays[:n_arrs_needed])
                     )
 
-                transfer_time += time_function(
+                transfer_time += self.time_function(
                     lambda: gpu_result_array.copy_to_host(cpu_result_array, self.stream)
                 )
 
