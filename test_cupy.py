@@ -40,13 +40,14 @@ def get_synchronized_time():
     return time.time()
 
 
-def free_memory_pool(arrays):
+def free_memory_pool(arrays=[]):
     """
     Delete the existing GPU arrays so that successive calls to `_send_arrays_to_gpu` don't cause any problems.
     """
-    for arr in arrays:
-        del arr
-        arr = None
+    if arrays:
+        for arr in arrays:
+            del arr
+            arr = None
     mempool.free_all_blocks()
 
 
@@ -311,6 +312,8 @@ for use_pinned_memory in pinned_memory_mode:
             background_correction_results.append(avg_bc)
 
         except cp.cuda.memory.OutOfMemoryError:
+            # Ideally this shouldn't happen with partitioning in place!
+            free_memory_pool()
             break
 
     if use_pinned_memory:
