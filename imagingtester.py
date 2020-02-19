@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 from math import ceil
 
@@ -16,6 +17,7 @@ DTYPE = None
 TEST_PARALLEL_NUMBA = None
 USE_NONPINNED_MEMORY = None
 
+# Retrieve the benchmark parameters from the yaml file
 with open(os.path.join(os.getcwd(), "benchmarkparams.yaml")) as f:
     params = yaml.load(f, Loader=yaml.FullLoader)
     NO_PRINT = params["no_print"]
@@ -27,6 +29,12 @@ with open(os.path.join(os.getcwd(), "benchmarkparams.yaml")) as f:
 
 
 def create_arrays(size_tuple, dtype):
+    """
+    Create three arrays of a given size containing random values.
+    :param size_tuple: The desired size of the arrays.
+    :param dtype: The desired data type of the arrays.
+    :return: Three arrays containing values between the "minimum" and "maximum" pixel values.
+    """
     return [
         np.random.uniform(
             low=MINIMUM_PIXEL_VALUE, high=MAXIMUM_PIXEL_VALUE, size=size_tuple
@@ -105,7 +113,7 @@ def print_array_creation_time(time):
 
 
 def memory_needed_for_array(cpu_arrays):
-    return sum([arr.nbytes for arr in cpu_arrays])
+    return sum([sys.getsizeof(arr) for arr in cpu_arrays])
 
 
 def partition_arrays(cpu_arrays, n_partitions):

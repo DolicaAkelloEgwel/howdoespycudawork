@@ -32,6 +32,11 @@ LIB_NAME = "cupy"
 
 
 def num_partitions_needed(cpu_arrays):
+    """
+    Find the number of partitions needed in order to perform an operation on the GPU with a larger set of arrays.
+    :param cpu_arrays: The list of CPU arrays that are to be used as input for an imaging algorithm.
+    :return: The number of slices required to slice the arrays.
+    """
     return number_of_partitions_needed(cpu_arrays, mempool.get_limit())
 
 
@@ -126,7 +131,7 @@ class CupyImplementation(ImagingTester):
 
     def _send_arrays_to_gpu_with_pinned_memory(self, cpu_arrays):
         """
-        Transfer the arrays to the GPU using pinned memory.
+        Transfer the arrays to the GPU using pinned memory. Should make data transfer quicker.
         """
         gpu_arrays = []
 
@@ -159,23 +164,22 @@ class CupyImplementation(ImagingTester):
             transfer_time += time_function(gpu_arrays[0].get)
 
             free_memory_pool(gpu_arrays)
+            self.print_operation_times(operation_time, "adding", runs, transfer_time)
 
         else:
 
             split_arrays = partition_arrays(self.cpu_arrays[:2], n_partitions_needed)
-
-            print(n_partitions_needed)
-            print(split_arrays[0][0].shape)
 
             for i in range(n_partitions_needed):
 
                 split_cpu_arrays = [split_array[i] for split_array in split_arrays]
 
                 try:
+
                     start = get_synchronized_time()
                     gpu_arrays = self._send_arrays_to_gpu(split_cpu_arrays)
-                    end = get_synchronized_time()
-                    transfer_time += end - start
+                    transfer_time += get_synchronized_time() - start
+
                 except cp.cuda.memory.OutOfMemoryError:
                     print(
                         "Failed to make two GPU arrays of size",
@@ -194,11 +198,9 @@ class CupyImplementation(ImagingTester):
 
                 transfer_time += time_function(gpu_arrays[0].get)
 
-                print("Completed one partition.", i)
-
                 free_memory_pool(split_cpu_arrays + gpu_arrays)
 
-        self.print_operation_times(operation_time, "adding", runs, transfer_time)
+            self.print_operation_times(operation_time, "adding", runs, transfer_time)
 
         return transfer_time + operation_time / runs
 
