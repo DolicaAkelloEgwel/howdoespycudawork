@@ -273,6 +273,8 @@ cupy_background_correction(cp_data, cp_dark, cp_flat)
 numpy_background_correction(np_data, np_dark, np_flat)
 assert np.all_close(np_data, cp_data.get())
 
+# Getting rid of test arrays
+free_memory_pool(random_test_arrays + [all_one])
 
 for use_pinned_memory in pinned_memory_mode:
 
