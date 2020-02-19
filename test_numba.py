@@ -154,6 +154,7 @@ class NumbaImplementation(ImagingTester):
                 del array
                 array = None
         cuda.current_context().deallocations.clear()
+        self.stream.synchronize()
 
         if NO_PRINT:
             return
@@ -175,7 +176,8 @@ class NumbaImplementation(ImagingTester):
         self.clear_cuda_memory()
 
         n_partitions_needed = num_partitions_needed(
-            self.cpu_arrays[:n_arrs_needed], get_free_bytes()
+            self.cpu_arrays[:n_arrs_needed] + [np.empty_like(self.cpu_arrays[0])],
+            get_free_bytes(),
         )
 
         transfer_time = 0
@@ -254,10 +256,14 @@ class NumbaImplementation(ImagingTester):
                         lambda: alg(*gpu_arrays[:n_arrs_needed])
                     )
 
-                transfer_time += time_function(gpu_result_array.get)
+                transfer_time += time_function(
+                    lambda: gpu_result_array.copy_to_host(cpu_result_array, self.stream)
+                )
 
                 # Free GPU arrays and partition arrays
-                self.clear_cuda_memory(split_cpu_arrays + gpu_arrays + gpu_result_array)
+                self.clear_cuda_memory(
+                    split_cpu_arrays + [gpu_arrays, gpu_result_array]
+                )
 
         if transfer_time > 0 and operation_time > 0:
             self.print_operation_times(operation_time, alg_name, runs, transfer_time)
