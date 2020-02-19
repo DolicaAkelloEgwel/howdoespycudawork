@@ -16,7 +16,7 @@ from imagingtester import (
     USE_NONPINNED_MEMORY,
 )
 from imagingtester import num_partitions_needed as number_of_partitions_needed
-from test_numpy import numpy_background_correction
+from numpy_background_correction import numpy_background_correction
 from write_and_read_results import (
     write_results_to_file,
     ADD_ARRAYS,
@@ -54,10 +54,12 @@ def free_memory_pool(arrays=[]):
     Delete the existing GPU arrays and free blocks so that successive calls to `_send_arrays_to_gpu` don't lead to any
     problems.
     """
+    cp.cuda.runtime.deviceSynchronize()
     if arrays:
         for arr in arrays:
             del arr
             arr = None
+    cp.cuda.runtime.deviceSynchronize()
     mempool.free_all_blocks()
 
 
@@ -117,11 +119,11 @@ def cupy_background_correction(
     :param clip_min: Minimum clipping value.
     :param clip_max: Maximum clipping value.
     """
-    norm_divide = np.subtract(flat, dark)
+    norm_divide = cp.subtract(flat, dark)
     norm_divide[norm_divide == 0] = MINIMUM_PIXEL_VALUE
-    cp.subtract(data, dark, out=data)
-    cp.true_divide(data, norm_divide, out=data)
-    cp.clip(data, clip_min, clip_max, out=data)
+    data = cp.subtract(data, dark)
+    data = cp.true_divide(data, norm_divide)
+    data = cp.clip(data, clip_min, clip_max)
 
 
 class CupyImplementation(ImagingTester):
@@ -162,10 +164,9 @@ class CupyImplementation(ImagingTester):
 
         return gpu_arrays
 
-    def timed_imaging_operation(self, runs, alg, alg_name, arrs_needed):
+    def timed_imaging_operation(self, runs, alg, alg_name, n_arrs_needed):
 
         # Synchronize and free memory before making an assessment about available space
-        cp.cuda.runtime.deviceSynchronize()
         free_memory_pool()
 
         # Determine the number of partitions required
@@ -180,12 +181,14 @@ class CupyImplementation(ImagingTester):
 
             # Time the transfer from CPU to GPU
             start = get_synchronized_time()
-            gpu_arrays = self._send_arrays_to_gpu(self.cpu_arrays[:arrs_needed])
+            gpu_arrays = self._send_arrays_to_gpu(self.cpu_arrays[:n_arrs_needed])
             transfer_time = get_synchronized_time() - start
 
             # Repeat the operation
             for _ in range(runs):
-                operation_time += time_function(lambda: alg(*gpu_arrays[:arrs_needed]))
+                operation_time += time_function(
+                    lambda: alg(*gpu_arrays[:n_arrs_needed])
+                )
 
             # Time the transfer from GPU to CPU
             transfer_time += time_function(gpu_arrays[0].get)
@@ -197,7 +200,7 @@ class CupyImplementation(ImagingTester):
 
             # Split the arrays
             split_arrays = partition_arrays(
-                self.cpu_arrays[:arrs_needed], n_partitions_needed
+                self.cpu_arrays[:n_arrs_needed], n_partitions_needed
             )
 
             for i in range(n_partitions_needed):
@@ -219,7 +222,7 @@ class CupyImplementation(ImagingTester):
                     # This shouldn't happen provided partitioning is working correctly...
                     print(
                         "Failed to make %s GPU arrays of size %s."
-                        % (arrs_needed, split_cpu_arrays[0].shape)
+                        % (n_arrs_needed, split_cpu_arrays[0].shape)
                     )
                     print(
                         "Used bytes:",
@@ -234,7 +237,7 @@ class CupyImplementation(ImagingTester):
                 # Carry out the operation on the slices
                 for _ in range(runs):
                     operation_time += time_function(
-                        lambda: alg(*gpu_arrays[:arrs_needed])
+                        lambda: alg(*gpu_arrays[:n_arrs_needed])
                     )
 
                 transfer_time += time_function(gpu_arrays[0].get)
@@ -243,7 +246,12 @@ class CupyImplementation(ImagingTester):
                 free_memory_pool(split_cpu_arrays + gpu_arrays)
 
         if transfer_time > 0 and operation_time > 0:
-            self.print_operation_times(operation_time, alg_name, runs, transfer_time)
+            self.print_operation_times(
+                operation_time=operation_time,
+                operation_name=alg_name,
+                runs=runs,
+                transfer_time=transfer_time,
+            )
 
         return transfer_time + operation_time / runs
 
@@ -265,13 +273,11 @@ assert cp.all(all_one == 4)
 random_test_arrays = [
     cp.random.uniform(low=0.0, high=20, size=(5, 5, 5)) for _ in range(3)
 ]
-cp_data, cp_dark, cp_flat = [
-    cp.random.uniform(low=0.0, high=20, size=(5, 5, 5)) for _ in range(3)
-]
+cp_data, cp_dark, cp_flat = random_test_arrays
 np_data, np_dark, np_flat = [cp_arr.get() for cp_arr in random_test_arrays]
 cupy_background_correction(cp_data, cp_dark, cp_flat)
 numpy_background_correction(np_data, np_dark, np_flat)
-assert np.all_close(np_data, cp_data.get())
+assert np.allclose(np_data, cp_data.get())
 
 # Getting rid of test arrays
 free_memory_pool(random_test_arrays + [all_one])

@@ -59,12 +59,6 @@ class ImagingTester:
     def warm_up(self):
         pass
 
-    def timed_add_arrays(self, runs):
-        pass
-
-    def timed_background_correction(self, runs):
-        pass
-
     def print_operation_times(
         self, operation_time, operation_name, runs, transfer_time=None
     ):
@@ -112,7 +106,7 @@ def print_array_creation_time(time):
     print("Array creation time: %ss" % time)
 
 
-def memory_needed_for_array(cpu_arrays):
+def memory_needed_for_arrays(cpu_arrays):
     return sum([sys.getsizeof(arr) for arr in cpu_arrays])
 
 
@@ -121,4 +115,4 @@ def partition_arrays(cpu_arrays, n_partitions):
 
 
 def num_partitions_needed(cpu_arrays, free_bytes):
-    return int(ceil(memory_needed_for_array(cpu_arrays) * 1.0 / free_bytes))
+    return int(ceil(memory_needed_for_arrays(cpu_arrays) * 1.0 / free_bytes))
