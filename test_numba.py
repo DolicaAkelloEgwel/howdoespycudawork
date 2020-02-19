@@ -142,6 +142,7 @@ class NumbaImplementation(ImagingTester):
 
     def clear_cuda_memory(self, split_arrays=[]):
 
+        cuda.synchronize()
         self.stream.synchronize()
 
         if not NO_PRINT:
