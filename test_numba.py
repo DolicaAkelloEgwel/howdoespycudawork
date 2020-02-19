@@ -11,6 +11,7 @@ from imagingtester import (
     SIZES_SUBSET,
     TEST_PARALLEL_NUMBA,
     partition_arrays,
+    NO_PRINT,
 )
 from imagingtester import num_partitions_needed as number_of_partitions_needed
 from write_and_read_results import (
@@ -210,14 +211,16 @@ class NumbaImplementation(ImagingTester):
 
     def clear_cuda_memory(self, split_arrays=None):
 
-        print("Free bytes before clearing memory", get_free_bytes())
-
+        if not NO_PRINT:
+            print("Free bytes before clearing memory:", get_free_bytes())
         if split_arrays is not None:
             for array in split_arrays:
                 del array
                 array = None
         cuda.current_context().deallocations.clear()
-        print("Free bytes after clearing memory", get_free_bytes())
+        if NO_PRINT:
+            return
+        print("Free bytes after clearing memory:", get_free_bytes())
 
 
 for mode in MODES:
