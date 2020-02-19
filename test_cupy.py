@@ -123,7 +123,9 @@ def cupy_background_correction(
     norm_divide[norm_divide == 0] = MINIMUM_PIXEL_VALUE
     data = cp.subtract(data, dark)
     data = cp.true_divide(data, norm_divide)
-    data = cp.clip(data, clip_min, clip_max)
+    data = cp.clip(
+        data, clip_min, clip_max
+    )  # For some reason using the 'out' parameter doesn't work
 
 
 class CupyImplementation(ImagingTester):
