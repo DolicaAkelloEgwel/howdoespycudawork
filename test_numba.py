@@ -36,13 +36,11 @@ else:
 
 
 def get_free_bytes():
-    meminfo = cuda.current_context().get_memory_info()
-    return meminfo[0]
+    return cuda.current_context().get_memory_info()[0]
 
 
 def get_used_bytes():
-    meminfo = cuda.current_context().get_memory_info()
-    return meminfo[1]
+    return cuda.current_context().get_memory_info()[1] - get_free_bytes()
 
 
 @vectorize(["{0}({0},{0})".format(DTYPE)], target="cuda")
