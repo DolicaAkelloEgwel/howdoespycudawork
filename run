@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+mkdir -p results
 rm -r results/*
 python test_numpy.py
 python test_cupy.py
