@@ -27,7 +27,7 @@ pinned_memory_mode = [True, False]
 if USE_NONPINNED_MEMORY:
     pinned_memory_mode = pinned_memory_mode[:1]
 LIB_NAME = "cupy"
-MAX_CUPY_MEMORY = 0.9
+MAX_CUPY_MEMORY = 0.9  # Anything exceeding this seems to make malloc fail
 
 
 def print_memory_metrics():
