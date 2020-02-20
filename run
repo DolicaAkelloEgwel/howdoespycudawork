@@ -4,7 +4,9 @@ mkdir -p results
 rm -r results/*
 python test_numpy.py
 python test_cupy.py
-python test_numba.py
-python test_pycuda.py
+python test_numba_parallel.py
+python test_numba_jit.py
+python test_numba_vectorise.py
+#python test_pycuda.py
 
 python plot_results.py

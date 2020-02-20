@@ -10,8 +10,12 @@ def get_free_bytes():
     return cuda.current_context().get_memory_info()[0]
 
 
+def get_total_bytes():
+    return cuda.current_context().get_memory_info()[1]
+
+
 def get_used_bytes():
-    return cuda.current_context().get_memory_info()[1] - get_free_bytes()
+    return get_total_bytes() - get_free_bytes()
 
 
 def create_vectorise_add_arrays(target):

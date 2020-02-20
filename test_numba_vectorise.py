@@ -19,6 +19,10 @@ from numba_test_utils import (
     create_vectorise_add_arrays,
     create_vectorise_background_correction,
     LIB_NAME,
+    get_free_bytes,
+    get_used_bytes,
+    STREAM,
+    get_total_bytes,
 )
 from numpy_background_correction import numpy_background_correction
 from write_and_read_results import (
@@ -31,18 +35,8 @@ from write_and_read_results import (
 mode = "vectorise"
 
 
-def get_free_bytes():
-    return cuda.current_context().get_memory_info()[0]
-
-
-def get_used_bytes():
-    return cuda.current_context().get_memory_info()[1] - get_free_bytes()
-
-
 add_arrays = create_vectorise_add_arrays("cuda")
 background_correction = create_vectorise_background_correction("cuda")
-
-stream = cuda.stream()
 
 
 class NumbaImplementation(ImagingTester):
@@ -60,7 +54,7 @@ class NumbaImplementation(ImagingTester):
         background_correction(*warm_up_arrays, MINIMUM_PIXEL_VALUE, MAXIMUM_PIXEL_VALUE)
 
     def get_synchronized_time(self):
-        stream.synchronize()
+        STREAM.synchronize()
         return time.time()
 
     def time_function(self, func):
@@ -71,7 +65,7 @@ class NumbaImplementation(ImagingTester):
     def clear_cuda_memory(self, split_arrays=[]):
 
         cuda.synchronize()
-        stream.synchronize()
+        STREAM.synchronize()
 
         if PRINT_INFO:
             print("Free bytes before clearing memory:", get_free_bytes())
@@ -81,7 +75,7 @@ class NumbaImplementation(ImagingTester):
                 del array
                 array = None
         cuda.current_context().deallocations.clear()
-        stream.synchronize()
+        STREAM.synchronize()
 
         if PRINT_INFO:
             print("Free bytes after clearing memory:", get_free_bytes())
@@ -93,7 +87,7 @@ class NumbaImplementation(ImagingTester):
 
         with cuda.pinned(*arrays_to_transfer):
             for arr in arrays_to_transfer:
-                gpu_arrays.append(cuda.to_device(arr, stream))
+                gpu_arrays.append(cuda.to_device(arr, STREAM))
 
         return gpu_arrays
 
@@ -121,11 +115,6 @@ class NumbaImplementation(ImagingTester):
                 operation_time += self.time_function(
                     lambda: alg(*gpu_arrays[:n_arrs_needed])
                 )
-
-            # # Time the transfer from GPU to CPU
-            # transfer_time += self.time_function(
-            #     lambda: gpu_result_array.copy_to_host(cpu_result_array, stream)
-            # )
 
             # Free the GPU arrays
             self.clear_cuda_memory(gpu_arrays)
@@ -162,7 +151,7 @@ class NumbaImplementation(ImagingTester):
                         "Used bytes:",
                         get_used_bytes(),
                         "/ Total bytes:",
-                        get_free_bytes(),
+                        get_total_bytes(),
                         "/ Space needed:",
                         memory_needed_for_arrays(split_cpu_arrays),
                     )
@@ -173,10 +162,6 @@ class NumbaImplementation(ImagingTester):
                     operation_time += self.time_function(
                         lambda: alg(*gpu_arrays[:n_arrs_needed])
                     )
-
-                # transfer_time += self.time_function(
-                #     lambda: gpu_result_array.copy_to_host(cpu_result_array, stream)
-                # )
 
                 # Free GPU arrays and partition arrays
                 self.clear_cuda_memory(split_cpu_arrays + [gpu_arrays])
