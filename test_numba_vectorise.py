@@ -18,6 +18,7 @@ from imagingtester import (
 from numba_test_utils import (
     create_vectorise_add_arrays,
     create_vectorise_background_correction,
+    LIB_NAME,
 )
 from numpy_background_correction import numpy_background_correction
 from write_and_read_results import (
@@ -27,7 +28,6 @@ from write_and_read_results import (
     ARRAY_SIZES,
 )
 
-LIB_NAME = "numba"
 mode = "vectorise"
 
 

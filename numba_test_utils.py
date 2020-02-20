@@ -3,6 +3,7 @@ from numba import cuda, vectorize
 from imagingtester import ImagingTester, PRINT_INFO, DTYPE, MINIMUM_PIXEL_VALUE
 
 LIB_NAME = "numba"
+STREAM = cuda.stream()
 
 
 def get_free_bytes():
@@ -11,9 +12,6 @@ def get_free_bytes():
 
 def get_used_bytes():
     return cuda.current_context().get_memory_info()[1] - get_free_bytes()
-
-
-STREAM = cuda.stream()
 
 
 def create_vectorise_add_arrays(target):
