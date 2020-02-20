@@ -266,10 +266,8 @@ mempool.malloc(mempool.get_limit())
 
 # Checking that cupy will change the value of the array
 all_one = cp.ones((1, 1, 1))
-double_array(all_one)
-assert cp.all(all_one == 2)
 cupy_add_arrays(all_one, all_one)
-assert cp.all(all_one == 4)
+assert cp.all(all_one == 2)
 
 # Checking the two background corrections get the same result
 random_test_arrays = [

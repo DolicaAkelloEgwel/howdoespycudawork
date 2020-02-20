@@ -31,7 +31,9 @@ class NumpyImplementation(ImagingTester):
         for _ in range(reps):
             total_time += time_function(lambda: np.add(*self.cpu_arrays[:2]))
         operation_time = total_time / reps
-        self.print_operation_times(operation_time, "adding", reps, None)
+        self.print_operation_times(
+            operation_time=operation_time, operation_name="adding", runs=reps
+        )
         return operation_time
 
     def timed_background_correction(self, reps):
@@ -42,7 +44,11 @@ class NumpyImplementation(ImagingTester):
                 lambda: numpy_background_correction(dark, data, flat)
             )
         operation_time = total_time / reps
-        self.print_operation_times(operation_time, "background correction", reps, None)
+        self.print_operation_times(
+            operation_time=operation_time,
+            operation_name="background correction",
+            runs=reps,
+        )
         return operation_time
 
 
