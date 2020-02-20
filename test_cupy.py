@@ -24,9 +24,12 @@ from write_and_read_results import (
     ARRAY_SIZES,
 )
 
-pinned_memory_mode = [True, False]
 if USE_NONPINNED_MEMORY:
-    pinned_memory_mode = pinned_memory_mode[:1]
+    pinned_memory_mode = [True, False]
+else:
+    pinned_memory_mode = [True]
+
+
 LIB_NAME = "cupy"
 MAX_CUPY_MEMORY = 0.9  # Anything exceeding this seems to make malloc fail
 
