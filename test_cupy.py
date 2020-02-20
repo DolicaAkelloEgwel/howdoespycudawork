@@ -11,7 +11,7 @@ from imagingtester import (
     N_RUNS,
     SIZES_SUBSET,
     DTYPE,
-    NO_PRINT,
+    PRINT_INFO,
     partition_arrays,
     USE_NONPINNED_MEMORY,
 )
@@ -35,7 +35,7 @@ def print_memory_metrics():
     """
     Print some information about how much space is being used on the GPU.
     """
-    if NO_PRINT:
+    if not PRINT_INFO:
         return
     print("Used bytes:", mempool.used_bytes(), "/ Total bytes:", mempool.total_bytes())
 

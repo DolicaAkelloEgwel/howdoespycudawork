@@ -12,7 +12,7 @@ from imagingtester import (
     SIZES_SUBSET,
     TEST_PARALLEL_NUMBA,
     partition_arrays,
-    NO_PRINT,
+    PRINT_INFO,
     num_partitions_needed,
     memory_needed_for_arrays,
 )
@@ -32,7 +32,8 @@ CUDA_JIT_MODE = "cuda jit"
 if TEST_PARALLEL_NUMBA:
     MODES = [PARALLEL_VECTORISE_MODE, CUDA_VECTORISE_MODE, CUDA_JIT_MODE]
 else:
-    MODES = [CUDA_VECTORISE_MODE, CUDA_JIT_MODE]
+    # MODES = [CUDA_JIT_MODE, CUDA_VECTORISE_MODE]
+    MODES = [CUDA_VECTORISE_MODE]
 
 
 def get_free_bytes():
@@ -114,12 +115,14 @@ def parallel_background_correction(data, dark, flat):
     return data
 
 
+stream = cuda.stream()
+
+
 class NumbaImplementation(ImagingTester):
     def __init__(self, size, dtype):
         super().__init__(size, dtype)
         self.warm_up()
         self.lib_name = LIB_NAME
-        self.stream = cuda.stream()
 
     def warm_up(self):
         """
@@ -130,7 +133,7 @@ class NumbaImplementation(ImagingTester):
         background_correction(*warm_up_arrays)
 
     def get_synchronized_time(self):
-        self.stream.synchronize()
+        stream.synchronize()
         return time.time()
 
     def time_function(self, func):
@@ -141,9 +144,9 @@ class NumbaImplementation(ImagingTester):
     def clear_cuda_memory(self, split_arrays=[]):
 
         cuda.synchronize()
-        self.stream.synchronize()
+        stream.synchronize()
 
-        if not NO_PRINT:
+        if PRINT_INFO:
             print("Free bytes before clearing memory:", get_free_bytes())
 
         if split_arrays:
@@ -151,11 +154,10 @@ class NumbaImplementation(ImagingTester):
                 del array
                 array = None
         cuda.current_context().deallocations.clear()
-        self.stream.synchronize()
+        stream.synchronize()
 
-        if NO_PRINT:
-            return
-        print("Free bytes after clearing memory:", get_free_bytes())
+        if PRINT_INFO:
+            print("Free bytes after clearing memory:", get_free_bytes())
 
     def _send_arrays_to_gpu(self, cpu_arrays, result_array):
 
@@ -164,7 +166,7 @@ class NumbaImplementation(ImagingTester):
 
         with cuda.pinned(*arrays_to_transfer):
             for arr in arrays_to_transfer:
-                gpu_arrays.append(cuda.to_device(arr, self.stream))
+                gpu_arrays.append(cuda.to_device(arr, stream))
         return gpu_arrays[:-1], gpu_arrays[-1]
 
     def timed_imaging_operation(self, runs, alg, alg_name, n_arrs_needed):
@@ -199,7 +201,7 @@ class NumbaImplementation(ImagingTester):
 
             # Time the transfer from GPU to CPU
             transfer_time += self.time_function(
-                lambda: gpu_result_array.copy_to_host(cpu_result_array, self.stream)
+                lambda: gpu_result_array.copy_to_host(cpu_result_array, stream)
             )
 
             # Free the GPU arrays
@@ -254,7 +256,7 @@ class NumbaImplementation(ImagingTester):
                     )
 
                 transfer_time += self.time_function(
-                    lambda: gpu_result_array.copy_to_host(cpu_result_array, self.stream)
+                    lambda: gpu_result_array.copy_to_host(cpu_result_array, stream)
                 )
 
                 # Free GPU arrays and partition arrays
@@ -303,8 +305,9 @@ for mode in MODES:
             background_correction_results.append(avg_bc)
 
         except cuda.cudadrv.driver.CudaAPIError:
-            print("Can't operate on arrays with size:", size)
-            print("Free bytes during CUDA error:", get_free_bytes())
+            if PRINT_INFO:
+                print("Can't operate on arrays with size:", size)
+                print("Free bytes during CUDA error:", get_free_bytes())
             imaging_obj.clear_cuda_memory()
             break
 

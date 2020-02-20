@@ -10,7 +10,7 @@ import numpy as np
 MINIMUM_PIXEL_VALUE = 1e-9
 MAXIMUM_PIXEL_VALUE = 200  # this isn't true but it makes random easier
 
-NO_PRINT = None
+PRINT_INFO = None
 N_RUNS = None
 SIZES_SUBSET = None
 DTYPE = None
@@ -20,7 +20,7 @@ USE_NONPINNED_MEMORY = None
 # Retrieve the benchmark parameters from the yaml file
 with open(os.path.join(os.getcwd(), "benchmarkparams.yaml")) as f:
     params = yaml.load(f, Loader=yaml.FullLoader)
-    NO_PRINT = params["no_print"]
+    PRINT_INFO = params["print_info"]
     N_RUNS = params["runs"]
     DTYPE = params["dtype"]
     SIZES_SUBSET = params["sizes_subset"]
@@ -69,7 +69,7 @@ class ImagingTester:
         :param runs: The number of runs used to obtain the average operation time.
         :param transfer_time: The time spent transferring the arrays to and from the GPU.
         """
-        if NO_PRINT:
+        if not PRINT_INFO:
             return
         if transfer_time is not None:
             print(
@@ -101,7 +101,7 @@ def print_array_creation_time(time):
     Print the array creation time. Generating large random arrays can take a while.
     :param time: Time taken to create the array.
     """
-    if NO_PRINT:
+    if not PRINT_INFO:
         return
     print("Array creation time: %ss" % time)
 
