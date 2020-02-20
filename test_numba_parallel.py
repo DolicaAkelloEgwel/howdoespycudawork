@@ -1,9 +1,7 @@
-from numba import vectorize, cuda
 import time
 import numpy as np
 
 from imagingtester import (
-    ImagingTester,
     MINIMUM_PIXEL_VALUE,
     MAXIMUM_PIXEL_VALUE,
     N_RUNS,
@@ -11,6 +9,11 @@ from imagingtester import (
     create_arrays,
     SIZES_SUBSET,
     TEST_PARALLEL_NUMBA,
+)
+from numba_test_utils import (
+    NumbaImplementation,
+    create_vectorise_add_arrays,
+    create_vectorise_background_correction,
 )
 from numpy_background_correction import numpy_background_correction
 from write_and_read_results import (
@@ -26,29 +29,11 @@ mode = "parallel"
 if not TEST_PARALLEL_NUMBA:
     exit()
 
-
-@vectorize(["{0}({0},{0})".format(DTYPE)], nopython=True, target="parallel")
-def add_arrays(elem1, elem2):
-    return elem1 + elem2
+add_arrays = create_vectorise_add_arrays(mode)
+background_correction = create_vectorise_background_correction(mode)
 
 
-@vectorize("{0}({0},{0},{0})".format(DTYPE), nopython=True, target="parallel")
-def background_correction(data, dark, flat):
-    data -= dark
-    flat -= dark
-    if flat > 0:
-        data /= flat
-    else:
-        data /= MINIMUM_PIXEL_VALUE
-
-    if data < MINIMUM_PIXEL_VALUE:
-        return MINIMUM_PIXEL_VALUE
-    if data > MAXIMUM_PIXEL_VALUE:
-        return MAXIMUM_PIXEL_VALUE
-    return data
-
-
-class NumbaImplementation(ImagingTester):
+class NumbaParallelImplementation(NumbaImplementation):
     def __init__(self, size, dtype):
         super().__init__(size, dtype)
         self.warm_up()
@@ -60,15 +45,10 @@ class NumbaImplementation(ImagingTester):
         """
         warm_up_arrays = create_arrays((1, 1, 1), self.dtype)
         add_arrays(*warm_up_arrays[:2])
-        background_correction(*warm_up_arrays)
+        background_correction(*warm_up_arrays, MINIMUM_PIXEL_VALUE, MAXIMUM_PIXEL_VALUE)
 
     def get_time(self):
         return time.time()
-
-    def time_function(self, func):
-        start = self.get_time()
-        func()
-        return self.get_time() - start
 
     def timed_imaging_operation(self, runs, alg, alg_name, n_arrs_needed):
 
@@ -92,20 +72,29 @@ parallel_result = add_arrays(practice_array, practice_array)
 assert np.all(parallel_result == 2)
 
 
-# # Checking the two background corrections get the same result
-# np_data, np_dark, np_flat = [
-#     np.random.uniform(low=0.0, high=20, size=(5, 5, 5)) for _ in range(3)
-# ]
-# result = cuda_vectorise_background_correction(np_data, np_dark, np_flat)
-# numpy_background_correction(np_data, np_dark, np_flat)
-# assert np.allclose(np_data, cp_data.get())
+# Checking the two background corrections get the same result
+np_data, np_dark, np_flat = [
+    np.random.uniform(low=0.0, high=20, size=(5, 5, 5)) for _ in range(3)
+]
+
+numba_data = np_data.copy()
+numba_dark = np_dark.copy()
+numba_flat = np_flat.copy()
+
+background_correction(
+    numba_data, numba_dark, numba_flat, MINIMUM_PIXEL_VALUE, MAXIMUM_PIXEL_VALUE
+)
+numpy_background_correction(
+    np_data, np_dark, np_flat, MINIMUM_PIXEL_VALUE, MAXIMUM_PIXEL_VALUE
+)
+assert np.allclose(np_data, numba_data)
 
 
 add_arrays_results = []
 background_correction_results = []
 
 
-def background_correction_fixed_clip(dark, data, flat):
+def background_correction_fixed_clips(dark, data, flat):
     return background_correction(
         data, dark, flat, MINIMUM_PIXEL_VALUE, MAXIMUM_PIXEL_VALUE
     )
@@ -113,11 +102,11 @@ def background_correction_fixed_clip(dark, data, flat):
 
 for size in ARRAY_SIZES[:SIZES_SUBSET]:
 
-    imaging_obj = NumbaImplementation(size, DTYPE)
+    imaging_obj = NumbaParallelImplementation(size, DTYPE)
 
     avg_add = imaging_obj.timed_imaging_operation(N_RUNS, add_arrays, "adding", 2)
     avg_bc = imaging_obj.timed_imaging_operation(
-        N_RUNS, background_correction, "background correction", 3
+        N_RUNS, background_correction_fixed_clips, "background correction", 3
     )
 
     add_arrays_results.append(avg_add)
