@@ -1,4 +1,4 @@
-from numba import vectorize, cuda
+from numba import cuda
 import time
 import numpy as np
 
@@ -14,6 +14,10 @@ from imagingtester import (
     PRINT_INFO,
     num_partitions_needed,
     memory_needed_for_arrays,
+)
+from numba_test_utils import (
+    create_vectorise_add_arrays,
+    create_vectorise_background_correction,
 )
 from numpy_background_correction import numpy_background_correction
 from write_and_read_results import (
@@ -35,60 +39,8 @@ def get_used_bytes():
     return cuda.current_context().get_memory_info()[1] - get_free_bytes()
 
 
-@vectorize(["{0}({0},{0})".format(DTYPE)], target="cuda")
-def add_arrays(elem1, elem2):
-    return elem1 + elem2
-
-
-@vectorize("{0}({0},{0},{0},{0},{0})".format(DTYPE), target="cuda")
-def background_correction(data, dark, flat, clip_min, clip_max):
-
-    norm_divide = flat - dark
-
-    if norm_divide == 0:
-        norm_divide = MINIMUM_PIXEL_VALUE
-
-    data -= dark
-    data /= norm_divide
-
-    if data < clip_min:
-        data = clip_min
-    if data > clip_max:
-        data = clip_max
-
-    return data
-
-
-# @cuda.jit("void({0}[:,:,:],{0}[:,:,:],{0}[:,:,:])".format(DTYPE))
-# @cuda.jit
-# def cuda_jit_add_arrays(arr1, arr2, out):
-#
-#     i, j, k = cuda.grid(3)
-#
-#     if i < arr1.shape[0] and j < arr1.shape[1] and k < arr1.shape[2]:
-#         out[i, j, k] = arr1[i, j, k] + arr2[i, j, k]
-#
-#
-# @cuda.jit
-# def cuda_jit_background_correction(
-#     data, dark, flat, clip_min=MINIMUM_PIXEL_VALUE, clip_max=MAXIMUM_PIXEL_VALUE
-# ):
-#     i, j, k = cuda.grid(3)
-#
-#     if i < data.shape[0] and j < data.shape[1] and k < data.shape[2]:
-#         data[i][j][k] -= dark[i][j][k]
-#         flat[i][j][k] -= dark[i][j][k]
-#
-#         if flat[i][j][k] > 0:
-#             data[i][j][k] /= flat[i][j][k]
-#         else:
-#             data[i][j][k] /= MINIMUM_PIXEL_VALUE
-#
-#         if data[i][j][k] < clip_min:
-#             data[i][j][k] = clip_min
-#         elif data[i][j][k] > clip_max:
-#             data[i][j][k] = clip_max
-
+add_arrays = create_vectorise_add_arrays("cuda")
+background_correction = create_vectorise_background_correction("cuda")
 
 stream = cuda.stream()
 
@@ -227,9 +179,7 @@ class NumbaImplementation(ImagingTester):
                 # )
 
                 # Free GPU arrays and partition arrays
-                self.clear_cuda_memory(
-                    split_cpu_arrays + [gpu_arrays, gpu_result_array]
-                )
+                self.clear_cuda_memory(split_cpu_arrays + [gpu_arrays])
 
         if transfer_time > 0 and operation_time > 0:
             self.print_operation_times(operation_time, alg_name, runs, transfer_time)
@@ -238,9 +188,25 @@ class NumbaImplementation(ImagingTester):
 
 
 practice_array = np.ones(shape=(5, 5, 5)).astype(DTYPE)
-jit_result = np.empty_like(practice_array).astype(DTYPE)
 vect_result = add_arrays(practice_array, practice_array)
 assert np.all(vect_result == 2)
+
+# Checking the two background corrections get the same result
+np_data, np_dark, np_flat = [
+    np.random.uniform(low=0.0, high=20, size=(5, 5, 5)) for _ in range(3)
+]
+
+numba_data = np_data.copy()
+numba_dark = np_dark.copy()
+numba_flat = np_flat.copy()
+
+background_correction(
+    numba_data, numba_dark, numba_flat, MINIMUM_PIXEL_VALUE, MAXIMUM_PIXEL_VALUE
+)
+numpy_background_correction(
+    np_data, np_dark, np_flat, MINIMUM_PIXEL_VALUE, MAXIMUM_PIXEL_VALUE
+)
+assert np.allclose(np_data, numba_data)
 
 add_arrays_results = []
 background_correction_results = []
