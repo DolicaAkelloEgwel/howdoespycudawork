@@ -60,6 +60,18 @@ def background_correction(dark, data, flat, out, clip_min, clip_max):
         out[i, j, k] = clip_max
 
 
+def print_memory_info_after_transfer_failure(arr, n_gpu_arrays_needed):
+    print("Failed to make %s GPU arrays of size %s." % (n_gpu_arrays_needed, arr.shape))
+    print(
+        "Used bytes:",
+        get_used_bytes(),
+        "/ Total bytes:",
+        get_total_bytes(),
+        "/ Space needed:",
+        memory_needed_for_arrays(arr, n_gpu_arrays_needed),
+    )
+
+
 class NumbaImplementation(ImagingTester):
     def __init__(self, size, dtype):
         super().__init__(size, dtype)
@@ -106,23 +118,29 @@ class NumbaImplementation(ImagingTester):
         if PRINT_INFO:
             print("Free bytes after clearing memory:", get_free_bytes())
 
-    def _send_arrays_to_gpu(self, arrays_to_transfer):
+    def _send_arrays_to_gpu(self, arrays_to_transfer, n_gpu_arrays_needed):
 
         gpu_arrays = []
 
         with cuda.pinned(*arrays_to_transfer):
             for arr in arrays_to_transfer:
-                gpu_arrays.append(cuda.to_device(arr, STREAM))
+                try:
+                    gpu_array = cuda.to_device(arr, STREAM)
+                except cuda.cudadrv.driver.CudaAPIError:
+                    print_memory_info_after_transfer_failure(arr, n_gpu_arrays_needed)
+                    return []
+                gpu_arrays.append(gpu_array)
         return gpu_arrays
 
-    def timed_imaging_operation(self, runs, alg, alg_name, n_arrs_needed):
+    def timed_imaging_operation(
+        self, runs, alg, alg_name, n_arrs_needed, n_gpu_arrs_needed
+    ):
 
         # Synchronize and free memory before making an assessment about available space
         self.clear_cuda_memory()
 
         n_partitions_needed = num_partitions_needed(
-            self.cpu_arrays[:n_arrs_needed] + [np.empty_like(self.cpu_arrays[0])],
-            get_free_bytes(),
+            self.cpu_arrays[0], n_gpu_arrs_needed, get_free_bytes()
         )
 
         transfer_time = 0
@@ -134,8 +152,12 @@ class NumbaImplementation(ImagingTester):
 
             # Time transfer from CPU to GPU
             start = self.get_synchronized_time()
-            gpu_input_arrays = self._send_arrays_to_gpu(self.cpu_arrays[:n_arrs_needed])
-            gpu_output_array = self._send_arrays_to_gpu([cpu_result_array])[0]
+            gpu_input_arrays = self._send_arrays_to_gpu(
+                self.cpu_arrays[:n_arrs_needed], n_gpu_arrs_needed
+            )
+            gpu_output_array = self._send_arrays_to_gpu(
+                [cpu_result_array], n_gpu_arrs_needed
+            )[0]
             transfer_time += self.get_synchronized_time() - start
 
             # Repeat the operation
@@ -154,11 +176,12 @@ class NumbaImplementation(ImagingTester):
 
         else:
 
-            print("Partitions:", n_partitions_needed)
-
             # Split the arrays
             split_arrays = partition_arrays(
-                self.cpu_arrays[:n_arrs_needed], n_partitions_needed
+                self.cpu_arrays[:n_arrs_needed],
+                num_partitions_needed(
+                    self.cpu_arrays[0], n_gpu_arrs_needed, get_free_bytes()
+                ),
             )
 
             for i in range(n_partitions_needed):
@@ -170,30 +193,23 @@ class NumbaImplementation(ImagingTester):
 
                 cpu_result_array = np.empty_like(split_cpu_arrays[i])
 
-                try:
+                # Time transferring the segments to the GPU
+                start = self.get_synchronized_time()
+                gpu_input_arrays = self._send_arrays_to_gpu(
+                    split_cpu_arrays, n_gpu_arrs_needed
+                )
+                gpu_output_array_list = self._send_arrays_to_gpu(
+                    [cpu_result_array], n_gpu_arrs_needed
+                )
+                transfer_time += self.get_synchronized_time() - start
 
-                    # Time transferring the segments to the GPU
-                    start = self.get_synchronized_time()
-                    gpu_input_arrays = self._send_arrays_to_gpu(split_cpu_arrays)
-                    gpu_output_array = self._send_arrays_to_gpu([cpu_result_array])[0]
-                    transfer_time += self.get_synchronized_time() - start
+                if not gpu_input_arrays:
+                    return 0
 
-                except cuda.cudadrv.driver.CudaAPIError:
+                if not gpu_output_array_list:
+                    return 0
 
-                    # This shouldn't happen provided partitioning is working correctly...
-                    print(
-                        "Failed to make %s GPU arrays of size %s."
-                        % (n_arrs_needed + 1, split_cpu_arrays[0].shape)
-                    )
-                    print(
-                        "Used bytes:",
-                        get_used_bytes(),
-                        "/ Total bytes:",
-                        get_total_bytes(),
-                        "/ Space needed:",
-                        memory_needed_for_arrays(split_cpu_arrays + [cpu_result_array]),
-                    )
-                    break
+                gpu_output_array = gpu_output_array_list[0]
 
                 # Carry out the operation on the slices
                 for _ in range(runs):
@@ -256,13 +272,14 @@ for size in ARRAY_SIZES[:SIZES_SUBSET]:
 
     try:
         avg_add = imaging_obj.timed_imaging_operation(
-            N_RUNS, add_arrays_with_set_block_and_grid, "adding", 2
+            N_RUNS, add_arrays_with_set_block_and_grid, "adding", 2, 3
         )
         avg_bc = imaging_obj.timed_imaging_operation(
             N_RUNS,
             background_correction_with_set_block_and_grid,
             "background correction",
             3,
+            4,
         )
 
         add_arrays_results.append(avg_add)
