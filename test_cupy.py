@@ -157,8 +157,8 @@ class CupyImplementation(ImagingTester):
         for i in range(len(cpu_arrays)):
             try:
                 pinned_memory = _create_pinned_memory(cpu_arrays[i])
-                array_stream = cp.cuda.Stream(non_blocking=True)
                 gpu_array = cp.empty(pinned_memory.shape, dtype=self.dtype)
+                array_stream = cp.cuda.Stream(non_blocking=True)
                 gpu_array.set(pinned_memory, stream=array_stream)
                 gpu_arrays.append(gpu_array)
             except cp.cuda.memory.OutOfMemoryError:
@@ -332,7 +332,7 @@ for use_pinned_memory in pinned_memory_mode:
     add_arrays_results = []
     background_correction_results = []
 
-    for size in ARRAY_SIZES[:SIZES_SUBSET]:
+    for size in ARRAY_SIZES[3:SIZES_SUBSET]:
 
         imaging_obj = CupyImplementation(size, DTYPE, use_pinned_memory)
 
