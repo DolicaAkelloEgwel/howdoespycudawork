@@ -1,6 +1,6 @@
-runs: 5
-sizes_subset: 5 # max is 5 for now
+runs: 3
+sizes_subset: 4 # max is 5 for now
 dtype: "float64"
-print_info: false
-test_parallel_numba: false
+print_info: true
+test_parallel_numba: true
 use_nonpinned_memory: false #

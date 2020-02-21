@@ -15,7 +15,13 @@ from imagingtester import (
     MINIMUM_PIXEL_VALUE,
     MAXIMUM_PIXEL_VALUE,
 )
-from numba_test_utils import STREAM, get_free_bytes, get_used_bytes, get_total_bytes
+from numba_test_utils import (
+    STREAM,
+    get_free_bytes,
+    get_used_bytes,
+    get_total_bytes,
+    NumbaImplementation,
+)
 from numpy_background_correction import numpy_background_correction
 from write_and_read_results import (
     write_results_to_file,
@@ -60,23 +66,9 @@ def background_correction(dark, data, flat, out, clip_min, clip_max):
         out[i, j, k] = clip_max
 
 
-def print_memory_info_after_transfer_failure(arr, n_gpu_arrays_needed):
-    print("Failed to make %s GPU arrays of size %s." % (n_gpu_arrays_needed, arr.shape))
-    print(
-        "Used bytes:",
-        get_used_bytes(),
-        "/ Total bytes:",
-        get_total_bytes(),
-        "/ Space needed:",
-        memory_needed_for_arrays(arr, n_gpu_arrays_needed),
-    )
-
-
-class NumbaImplementation(ImagingTester):
+class NumbaCudaJitImplementation(NumbaImplementation):
     def __init__(self, size, dtype):
         super().__init__(size, dtype)
-        self.warm_up()
-        self.lib_name = LIB_NAME
 
     def warm_up(self):
         """
@@ -91,46 +83,9 @@ class NumbaImplementation(ImagingTester):
             MAXIMUM_PIXEL_VALUE
         )
 
-    def get_synchronized_time(self):
+    def get_time(self):
         STREAM.synchronize()
         return time.time()
-
-    def time_function(self, func):
-        start = self.get_synchronized_time()
-        func()
-        return self.get_synchronized_time() - start
-
-    def clear_cuda_memory(self, split_arrays=[]):
-
-        cuda.synchronize()
-        STREAM.synchronize()
-
-        if PRINT_INFO:
-            print("Free bytes before clearing memory:", get_free_bytes())
-
-        if split_arrays:
-            for array in split_arrays:
-                del array
-                array = None
-        cuda.current_context().deallocations.clear()
-        STREAM.synchronize()
-
-        if PRINT_INFO:
-            print("Free bytes after clearing memory:", get_free_bytes())
-
-    def _send_arrays_to_gpu(self, arrays_to_transfer, n_gpu_arrays_needed):
-
-        gpu_arrays = []
-
-        with cuda.pinned(*arrays_to_transfer):
-            for arr in arrays_to_transfer:
-                try:
-                    gpu_array = cuda.to_device(arr, STREAM)
-                except cuda.cudadrv.driver.CudaAPIError:
-                    print_memory_info_after_transfer_failure(arr, n_gpu_arrays_needed)
-                    return []
-                gpu_arrays.append(gpu_array)
-        return gpu_arrays
 
     def timed_imaging_operation(
         self, runs, alg, alg_name, n_arrs_needed, n_gpu_arrs_needed
@@ -151,14 +106,14 @@ class NumbaImplementation(ImagingTester):
             cpu_result_array = np.empty_like(self.cpu_arrays[0])
 
             # Time transfer from CPU to GPU
-            start = self.get_synchronized_time()
+            start = self.get_time()
             gpu_input_arrays = self._send_arrays_to_gpu(
                 self.cpu_arrays[:n_arrs_needed], n_gpu_arrs_needed
             )
             gpu_output_array = self._send_arrays_to_gpu(
                 [cpu_result_array], n_gpu_arrs_needed
             )[0]
-            transfer_time += self.get_synchronized_time() - start
+            transfer_time += self.get_time() - start
 
             # Repeat the operation
             for _ in range(runs):
@@ -194,14 +149,14 @@ class NumbaImplementation(ImagingTester):
                 cpu_result_array = np.empty_like(split_cpu_arrays[i])
 
                 # Time transferring the segments to the GPU
-                start = self.get_synchronized_time()
+                start = self.get_time()
                 gpu_input_arrays = self._send_arrays_to_gpu(
                     split_cpu_arrays, n_gpu_arrs_needed
                 )
                 gpu_output_array_list = self._send_arrays_to_gpu(
                     [cpu_result_array], n_gpu_arrs_needed
                 )
-                transfer_time += self.get_synchronized_time() - start
+                transfer_time += self.get_time() - start
 
                 if not gpu_input_arrays:
                     return 0
@@ -268,29 +223,21 @@ background_correction_results = []
 
 for size in ARRAY_SIZES[:SIZES_SUBSET]:
 
-    imaging_obj = NumbaImplementation(size, DTYPE)
+    imaging_obj = NumbaCudaJitImplementation(size, DTYPE)
 
-    try:
-        avg_add = imaging_obj.timed_imaging_operation(
-            N_RUNS, add_arrays_with_set_block_and_grid, "adding", 2, 3
-        )
-        avg_bc = imaging_obj.timed_imaging_operation(
-            N_RUNS,
-            background_correction_with_set_block_and_grid,
-            "background correction",
-            3,
-            4,
-        )
+    avg_add = imaging_obj.timed_imaging_operation(
+        N_RUNS, add_arrays_with_set_block_and_grid, "adding", 2, 3
+    )
+    avg_bc = imaging_obj.timed_imaging_operation(
+        N_RUNS,
+        background_correction_with_set_block_and_grid,
+        "background correction",
+        3,
+        4,
+    )
 
-        add_arrays_results.append(avg_add)
-        background_correction_results.append(avg_bc)
-
-    except cuda.cudadrv.driver.CudaAPIError:
-        if PRINT_INFO:
-            print("Can't operate on arrays with size:", size)
-            print("Free bytes during CUDA error:", get_free_bytes())
-        imaging_obj.clear_cuda_memory()
-        break
+    add_arrays_results.append(avg_add)
+    background_correction_results.append(avg_bc)
 
 write_results_to_file([LIB_NAME, mode], ADD_ARRAYS, add_arrays_results)
 write_results_to_file(
