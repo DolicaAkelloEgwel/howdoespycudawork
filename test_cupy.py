@@ -2,6 +2,7 @@ import time
 
 import cupy as cp
 import numpy as np
+from cupy.cuda.memory import set_allocator, MemoryPool, malloc_managed
 
 from imagingtester import (
     ImagingTester,
@@ -32,7 +33,7 @@ else:
 
 
 LIB_NAME = "cupy"
-MAX_CUPY_MEMORY = 0.9  # Anything exceeding this seems to make malloc fail
+MAX_CUPY_MEMORY = 0.9  # Anything exceeding this seems to make malloc fail for me
 
 
 def print_memory_metrics():
@@ -212,7 +213,7 @@ class CupyImplementation(ImagingTester):
 
         # Determine the number of partitions required
         n_partitions_needed = number_of_partitions_needed(
-            self.cpu_arrays[0], n_gpu_arrs_needed, mempool.free_bytes()
+            self.cpu_arrays[0], n_gpu_arrs_needed, mempool.get_limit()
         )
 
         transfer_time = 0
@@ -243,7 +244,7 @@ class CupyImplementation(ImagingTester):
 
             # Determine the number of partitions required again (to be on the safe side)
             n_partitions_needed = number_of_partitions_needed(
-                self.cpu_arrays[0], n_gpu_arrs_needed, mempool.free_bytes()
+                self.cpu_arrays[0], n_gpu_arrs_needed, mempool.get_limit()
             )
 
             # Split the arrays
@@ -298,6 +299,8 @@ class CupyImplementation(ImagingTester):
 
         return transfer_time + operation_time / runs
 
+
+set_allocator(MemoryPool(malloc_managed).malloc)
 
 # Allocate CUDA memory
 mempool = cp.get_default_memory_pool()
