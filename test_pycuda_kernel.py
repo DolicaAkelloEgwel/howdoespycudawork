@@ -15,8 +15,8 @@ BackgroundCorrectionKernel = ElementwiseKernel(
     "if (flat[i] == 0) flat[i] = MINIMUM_PIXEL_VALUE;"
     "data[i] -= dark[i];"
     "data[i] /= flat[i];"
-    "if (flat[i] > MAXIMUM_PIXEL_VALUE) flat[i] = MAXIMUM_PIXEL_VALUE;"
-    "if (flat[i] < MINIMUM_PIXEL_VALUE) flat[i] = MINIMUM_PIXEL_VALUE;",
+    "if (data[i] > MAXIMUM_PIXEL_VALUE) data[i] = MAXIMUM_PIXEL_VALUE;"
+    "if (data[i] < MINIMUM_PIXEL_VALUE) data[i] = MINIMUM_PIXEL_VALUE;",
     name="BackgroundCorrectionKernel",
 )
 
