@@ -3,6 +3,7 @@ from pycuda.elementwise import ElementwiseKernel
 import numpy as np
 
 from imagingtester import MINIMUM_PIXEL_VALUE, MAXIMUM_PIXEL_VALUE, create_arrays, DTYPE
+from numpy_background_correction import numpy_background_correction
 from pycuda_test_utils import PyCudaImplementation, _send_arrays_to_gpu, C_DTYPE
 
 # Create an element-wise Background Correction Function
@@ -11,7 +12,7 @@ BackgroundCorrectionKernel = ElementwiseKernel(
         C_DTYPE
     ),
     operation="flat[i] -= dark[i];"
-    "if (flat[i] <= 0) flat[i] = MINIMUM_PIXEL_VALUE;"
+    "if (flat[i] == 0) flat[i] = MINIMUM_PIXEL_VALUE;"
     "data[i] -= dark[i];"
     "data[i] /= flat[i];"
     "if (flat[i] > MAXIMUM_PIXEL_VALUE) flat[i] = MAXIMUM_PIXEL_VALUE;"
@@ -56,7 +57,9 @@ practice_array = gpuarray.to_gpu(practice_array)
 AddArraysKernel(practice_array, practice_array)
 assert np.all(practice_array.get() == 2)
 
-# np_data, np_dark, np_flat = [
-#     np.random.uniform(low=0.0, high=20, size=(5, 5, 5)) for _ in range(3)
-# ]
-# cuda_data, cuda_dark, cuda_flat =
+np_arrays = [np.random.uniform(low=0.0, high=20, size=(5, 5, 5)) for _ in range(3)]
+np_data, np_dark, np_flat = np_arrays
+cuda_data, cuda_dark, cuda_flat = [gpuarray.to_gpu(np_arr) for np_arr in np_arrays]
+elementwise_background_correction(cuda_data, cuda_flat, cuda_dark)
+numpy_background_correction(np_dark, np_data, np_flat)
+assert np.allclose(np_data, cuda_data.get())
