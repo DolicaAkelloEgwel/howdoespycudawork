@@ -3,25 +3,16 @@ import time
 import numpy as np
 
 from imagingtester import (
-    ImagingTester,
     N_RUNS,
     DTYPE,
     create_arrays,
     SIZES_SUBSET,
-    partition_arrays,
-    PRINT_INFO,
+    get_array_partition_indices,
     num_partitions_needed,
-    memory_needed_for_arrays,
     MINIMUM_PIXEL_VALUE,
     MAXIMUM_PIXEL_VALUE,
 )
-from numba_test_utils import (
-    STREAM,
-    get_free_bytes,
-    get_used_bytes,
-    get_total_bytes,
-    NumbaImplementation,
-)
+from numba_test_utils import get_free_bytes, NumbaImplementation
 from numpy_background_correction import numpy_background_correction
 from write_and_read_results import (
     write_results_to_file,
@@ -84,7 +75,7 @@ class NumbaCudaJitImplementation(NumbaImplementation):
         )
 
     def get_time(self):
-        STREAM.synchronize()
+        self.synchronise()
         return time.time()
 
     def timed_imaging_operation(
@@ -121,29 +112,34 @@ class NumbaCudaJitImplementation(NumbaImplementation):
                     lambda: alg(*gpu_input_arrays[:n_arrs_needed], gpu_output_array)
                 )
 
+            stream = cuda.stream()
+            self.streams.append(stream)
+
             # Time the transfer from GPU to CPU
             transfer_time += self.time_function(
-                lambda: gpu_output_array.copy_to_host(cpu_result_array, STREAM)
+                lambda: gpu_output_array.copy_to_host(cpu_result_array, stream)
             )
 
             # Free the GPU arrays
-            self.clear_cuda_memory(gpu_input_arrays + [gpu_output_array])
+            self.clear_cuda_memory(gpu_input_arrays)
 
         else:
 
-            # Split the arrays
-            split_arrays = partition_arrays(
-                self.cpu_arrays[:n_arrs_needed],
-                num_partitions_needed(
-                    self.cpu_arrays[0], n_gpu_arrs_needed, get_free_bytes()
-                ),
+            # Determine the number of partitions required again (to be on the safe side)
+            n_partitions_needed = num_partitions_needed(
+                self.cpu_arrays[0], n_gpu_arrs_needed, get_free_bytes()
+            )
+
+            indices = get_array_partition_indices(
+                self.cpu_arrays[0].shape[0], n_partitions_needed
             )
 
             for i in range(n_partitions_needed):
 
                 # Retrieve the segments used for this iteration of the operation
                 split_cpu_arrays = [
-                    split_arrays[k][i] for k in range(len(split_arrays))
+                    cpu_array[indices[i][0] : indices[i][1] :, :]
+                    for cpu_array in self.cpu_arrays
                 ]
 
                 cpu_result_array = np.empty_like(split_cpu_arrays[i])
@@ -172,19 +168,20 @@ class NumbaCudaJitImplementation(NumbaImplementation):
                         lambda: alg(*gpu_input_arrays[:n_arrs_needed], gpu_output_array)
                     )
 
+                stream = cuda.stream()
+                self.streams.append(stream)
+
                 transfer_time += self.time_function(
-                    lambda: gpu_output_array.copy_to_host(cpu_result_array, STREAM)
+                    lambda: gpu_output_array.copy_to_host(cpu_result_array, stream)
                 )
 
                 # Free GPU arrays and partition arrays
-                self.clear_cuda_memory(
-                    split_cpu_arrays + gpu_input_arrays + [gpu_output_array]
-                )
+                self.clear_cuda_memory(gpu_input_arrays + [gpu_output_array])
 
         if transfer_time > 0 and operation_time > 0:
             self.print_operation_times(operation_time, alg_name, runs, transfer_time)
 
-        STREAM.synchronize()
+        self.synchronise()
 
         return transfer_time + operation_time / runs
 

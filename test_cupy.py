@@ -13,7 +13,7 @@ from imagingtester import (
     SIZES_SUBSET,
     DTYPE,
     PRINT_INFO,
-    partition_arrays,
+    get_array_partition_indices,
     USE_NONPINNED_MEMORY,
     memory_needed_for_arrays,
 )
@@ -31,7 +31,6 @@ if USE_NONPINNED_MEMORY:
 else:
     pinned_memory_mode = [True]
 
-
 LIB_NAME = "cupy"
 MAX_CUPY_MEMORY = 0.9  # Anything exceeding this seems to make malloc fail for me
 
@@ -45,12 +44,17 @@ def print_memory_metrics():
     print("Used bytes:", mempool.used_bytes(), "/ Total bytes:", mempool.total_bytes())
 
 
+def synchronise():
+    cp.cuda.Stream.null.synchronize()
+    cp.cuda.runtime.deviceSynchronize()
+
+
 def get_synchronized_time():
     """
     Get the time after calling the cuda synchronize method. This should ensure the GPU has completed whatever it was
     doing before getting the time.
     """
-    cp.cuda.runtime.deviceSynchronize()
+    synchronise()
     return time.time()
 
 
@@ -59,12 +63,13 @@ def free_memory_pool(arrays=[]):
     Delete the existing GPU arrays and free blocks so that successive calls to `_send_arrays_to_gpu` don't lead to any
     problems.
     """
-    cp.cuda.runtime.deviceSynchronize()
+    synchronise()
     if arrays:
         for arr in arrays:
             del arr
             arr = None
-    cp.cuda.runtime.deviceSynchronize()
+        del arrays
+    synchronise()
     mempool.free_all_blocks()
 
 
@@ -202,7 +207,7 @@ class CupyImplementation(ImagingTester):
             "/ Space needed:",
             memory_needed_for_arrays(cpu_arrays[0], n_gpu_arrays_needed),
         )
-        free_memory_pool(gpu_arrays + cpu_arrays)
+        free_memory_pool(gpu_arrays)
 
     def timed_imaging_operation(
         self, runs, alg, alg_name, n_arrs_needed, n_gpu_arrs_needed
@@ -247,16 +252,16 @@ class CupyImplementation(ImagingTester):
                 self.cpu_arrays[0], n_gpu_arrs_needed, mempool.get_limit()
             )
 
-            # Split the arrays
-            split_arrays = partition_arrays(
-                self.cpu_arrays[:n_arrs_needed], n_partitions_needed
+            indices = get_array_partition_indices(
+                self.cpu_arrays[0].shape[0], n_partitions_needed
             )
 
             for i in range(n_partitions_needed):
 
                 # Retrieve the segments used for this iteration of the operation
                 split_cpu_arrays = [
-                    split_arrays[k][i] for k in range(len(split_arrays))
+                    cpu_array[indices[i][0] : indices[i][1] :, :]
+                    for cpu_array in self.cpu_arrays
                 ]
 
                 # Time transferring the segments to the GPU
@@ -281,14 +286,14 @@ class CupyImplementation(ImagingTester):
                         "Unable to make extra arrays during operation despite successful transfer."
                     )
                     print(e)
-                    free_memory_pool(gpu_arrays + split_cpu_arrays)
+                    free_memory_pool(gpu_arrays)
                     return 0
 
                 # Store time taken to transfer result
                 transfer_time += time_function(gpu_arrays[0].get)
 
-                # Free GPU arrays and partition arrays
-                free_memory_pool(split_cpu_arrays + gpu_arrays)
+                # Free GPU arrays
+                free_memory_pool(gpu_arrays)
 
         self.print_operation_times(
             operation_time=operation_time,
@@ -332,7 +337,7 @@ for use_pinned_memory in pinned_memory_mode:
     add_arrays_results = []
     background_correction_results = []
 
-    for size in ARRAY_SIZES[3:SIZES_SUBSET]:
+    for size in ARRAY_SIZES[:SIZES_SUBSET]:
 
         imaging_obj = CupyImplementation(size, DTYPE, use_pinned_memory)
 

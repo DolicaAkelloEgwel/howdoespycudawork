@@ -110,11 +110,20 @@ def memory_needed_for_arrays(cpu_array, n_arrays_needed):
     return sys.getsizeof(cpu_array) * n_arrays_needed
 
 
-def partition_arrays(cpu_arrays, n_partitions):
-    return [np.array_split(cpu_array, n_partitions) for cpu_array in cpu_arrays]
+def get_array_partition_indices(x_shape, n_partitions):
+    split_mult = x_shape // n_partitions
+    split_indices = [(0, split_mult)]
+    for i in range(1, n_partitions - 1):
+        split_indices.append((i * split_mult + 1, (i + 1) * split_mult))
+    split_indices.append((split_mult * (n_partitions - 1) + 1, x_shape))
+    return split_indices
 
 
 def num_partitions_needed(cpu_arrays, n_arrays_needed, free_bytes):
     return int(
-        ceil(memory_needed_for_arrays(cpu_arrays, n_arrays_needed) * 1.0 / free_bytes)
+        ceil(
+            memory_needed_for_arrays(cpu_arrays, n_arrays_needed)
+            * 1.0
+            / (free_bytes * 0.8)
+        )
     )

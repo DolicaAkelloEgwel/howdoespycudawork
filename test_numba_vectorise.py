@@ -3,26 +3,21 @@ import time
 import numpy as np
 
 from imagingtester import (
-    ImagingTester,
     MINIMUM_PIXEL_VALUE,
     MAXIMUM_PIXEL_VALUE,
     N_RUNS,
     DTYPE,
     create_arrays,
     SIZES_SUBSET,
-    partition_arrays,
+    get_array_partition_indices,
     PRINT_INFO,
     num_partitions_needed,
-    memory_needed_for_arrays,
 )
 from numba_test_utils import (
     create_vectorise_add_arrays,
     create_vectorise_background_correction,
     LIB_NAME,
     get_free_bytes,
-    get_used_bytes,
-    STREAM,
-    get_total_bytes,
     NumbaImplementation,
 )
 from numpy_background_correction import numpy_background_correction
@@ -53,7 +48,7 @@ class NumbaCudaVectoriseImplementation(NumbaImplementation):
         background_correction(*warm_up_arrays, MINIMUM_PIXEL_VALUE, MAXIMUM_PIXEL_VALUE)
 
     def get_time(self):
-        STREAM.synchronize()
+        self.synchronise()
         return time.time()
 
     def timed_imaging_operation(
@@ -90,19 +85,21 @@ class NumbaCudaVectoriseImplementation(NumbaImplementation):
 
         else:
 
-            # Split the arrays
-            split_arrays = partition_arrays(
-                self.cpu_arrays[:n_arrs_needed],
-                num_partitions_needed(
-                    self.cpu_arrays[0], n_gpu_arrs_needed, get_free_bytes()
-                ),
+            # Determine the number of partitions required again (to be on the safe side)
+            n_partitions_needed = num_partitions_needed(
+                self.cpu_arrays[0], n_gpu_arrs_needed, get_free_bytes()
+            )
+
+            indices = get_array_partition_indices(
+                self.cpu_arrays[0].shape[0], n_partitions_needed
             )
 
             for i in range(n_partitions_needed):
 
                 # Retrieve the segments used for this iteration of the operation
                 split_cpu_arrays = [
-                    split_arrays[k][i] for k in range(len(split_arrays))
+                    cpu_array[indices[i][0] : indices[i][1] :, :]
+                    for cpu_array in self.cpu_arrays
                 ]
 
                 # Time transferring the segments to the GPU
@@ -122,7 +119,7 @@ class NumbaCudaVectoriseImplementation(NumbaImplementation):
                     )
 
                 # Free GPU arrays and partition arrays
-                self.clear_cuda_memory(split_cpu_arrays + [gpu_arrays])
+                self.clear_cuda_memory(gpu_arrays)
 
         if transfer_time > 0 and operation_time > 0:
             self.print_operation_times(operation_time, alg_name, runs, transfer_time)
