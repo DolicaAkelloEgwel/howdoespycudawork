@@ -37,7 +37,6 @@ class NumbaParallelImplementation(NumbaImplementation):
     def __init__(self, size, dtype):
         super().__init__(size, dtype)
         self.warm_up()
-        self.lib_name = LIB_NAME
 
     def warm_up(self):
         """
