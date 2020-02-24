@@ -1,4 +1,5 @@
 from pycuda import gpuarray
+import pycuda.driver as drv
 from pycuda.elementwise import ElementwiseKernel
 import numpy as np
 
@@ -63,3 +64,5 @@ cuda_data, cuda_dark, cuda_flat = [gpuarray.to_gpu(np_arr) for np_arr in np_arra
 elementwise_background_correction(cuda_data, cuda_flat, cuda_dark)
 numpy_background_correction(np_dark, np_data, np_flat)
 assert np.allclose(np_data, cuda_data.get())
+
+drv.Context.pop()
