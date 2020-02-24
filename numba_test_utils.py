@@ -9,7 +9,6 @@ from imagingtester import (
 )
 
 LIB_NAME = "numba"
-STREAM = cuda.stream()
 
 
 def get_free_bytes():
@@ -71,6 +70,7 @@ class NumbaImplementation(ImagingTester):
         super().__init__(size, dtype)
         self.warm_up()
         self.lib_name = LIB_NAME
+        self.streams = []
 
     def warm_up(self):
         pass
@@ -83,21 +83,27 @@ class NumbaImplementation(ImagingTester):
         func()
         return self.get_time() - start
 
-    def clear_cuda_memory(self, split_arrays=[]):
+    def synchronise(self):
 
+        for stream in self.streams:
+            stream.synchronize()
         cuda.synchronize()
-        STREAM.synchronize()
+
+    def clear_cuda_memory(self, gpu_arrays=[]):
+
+        self.synchronise()
 
         if PRINT_INFO:
             print("Free bytes before clearing memory:", get_free_bytes())
 
-        if split_arrays:
-            for array in split_arrays:
+        if gpu_arrays:
+            for array in gpu_arrays:
                 del array
                 array = None
+            del gpu_arrays
 
         cuda.current_context().deallocations.clear()
-        STREAM.synchronize()
+        self.synchronise()
 
         if PRINT_INFO:
             print("Free bytes after clearing memory:", get_free_bytes())
@@ -105,11 +111,12 @@ class NumbaImplementation(ImagingTester):
     def _send_arrays_to_gpu(self, arrays_to_transfer, n_gpu_arrays_needed):
 
         gpu_arrays = []
-
+        stream = cuda.stream()
+        self.streams.append(stream)
         with cuda.pinned(*arrays_to_transfer):
             for arr in arrays_to_transfer:
                 try:
-                    gpu_array = cuda.to_device(arr, STREAM)
+                    gpu_array = cuda.to_device(arr, stream)
                 except cuda.cudadrv.driver.CudaAPIError:
                     print_memory_info_after_transfer_failure(arr, n_gpu_arrays_needed)
                     return []
