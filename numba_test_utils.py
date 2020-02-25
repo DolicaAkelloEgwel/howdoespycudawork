@@ -35,13 +35,13 @@ def create_vectorise_background_correction(target):
     @vectorize("{0}({0},{0},{0},{0},{0})".format(DTYPE), target=target)
     def background_correction(data, dark, flat, clip_min, clip_max):
 
-        norm_divide = flat - dark
+        flat -= dark
 
-        if norm_divide == 0:
-            norm_divide = MINIMUM_PIXEL_VALUE
+        if flat == 0:
+            flat = MINIMUM_PIXEL_VALUE
 
         data -= dark
-        data /= norm_divide
+        data /= flat
 
         if data < clip_min:
             data = clip_min
@@ -119,6 +119,7 @@ class NumbaImplementation(ImagingTester):
                     gpu_array = cuda.to_device(arr, stream)
                 except cuda.cudadrv.driver.CudaAPIError:
                     print_memory_info_after_transfer_failure(arr, n_gpu_arrays_needed)
+                    self.clear_cuda_memory(gpu_arrays)
                     return []
                 gpu_arrays.append(gpu_array)
         return gpu_arrays
