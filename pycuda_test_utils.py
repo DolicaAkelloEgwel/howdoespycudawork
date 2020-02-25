@@ -9,7 +9,6 @@ from imagingtester import (
 )
 import pycuda.gpuarray as gpuarray
 import pycuda.driver as drv
-import numpy as np
 
 if DTYPE == "float32":
     C_DTYPE = "float"
@@ -21,10 +20,6 @@ LIB_NAME = "pycuda"
 # Initialise PyCuda Driver
 drv.init()
 drv.Device(0).make_context()
-
-
-def synchronise():
-    drv.Context.synchronize()
 
 
 def get_time():
@@ -78,35 +73,37 @@ def print_memory_info_after_transfer_failure(cpu_array, n_gpu_arrs_needed):
     )
 
 
-def _send_arrays_to_gpu(cpu_arrays, n_gpu_arrs_needed):
-
-    gpu_arrays = []
-
-    for cpu_array in cpu_arrays:
-        try:
-            gpu_array = gpuarray.to_gpu(cpu_array)
-            gpu_arrays.append(gpu_array)
-        except drv.MemoryError as e:
-            free_memory_pool(gpu_arrays)
-            print_memory_info_after_transfer_failure(cpu_array, n_gpu_arrs_needed)
-            print(e)
-            return []
-
-    return gpu_arrays
-
-
-def timed_send_arrays_to_gpu(cpu_arrays):
-    start = get_time()
-    gpu_arrays = _send_arrays_to_gpu(cpu_arrays)
-    end = get_time()
-    cpu_to_gpu_time = end - start
-    return cpu_to_gpu_time, gpu_arrays
-
-
 class PyCudaImplementation(ImagingTester):
     def __init__(self, size, dtype):
         super().__init__(size, dtype)
         self.lib_name = LIB_NAME
+        self.streams = []
+
+    def _send_arrays_to_gpu(self, cpu_arrays, n_gpu_arrs_needed):
+
+        gpu_arrays = []
+
+        for cpu_array in cpu_arrays:
+            try:
+                gpu_array = gpuarray.GPUArray(
+                    shape=cpu_array.shape, dtype=cpu_array.dtype
+                )
+            except drv.MemoryError as e:
+                free_memory_pool(gpu_arrays)
+                print_memory_info_after_transfer_failure(cpu_array, n_gpu_arrs_needed)
+                print(e)
+                return []
+            stream = drv.Stream()
+            self.streams.append(stream)
+            gpu_array.set_async(cpu_array, stream)
+            gpu_arrays.append(gpu_array)
+
+        return gpu_arrays
+
+    def synchronise(self):
+        for stream in self.streams:
+            stream.synchronize()
+        drv.Context.synchronize()
 
     def timed_imaging_operation(
         self, runs, alg, alg_name, n_arrs_needed, n_gpu_arrs_needed
@@ -123,7 +120,7 @@ class PyCudaImplementation(ImagingTester):
 
             # Time transfer from CPU to GPU
             start = get_time()
-            gpu_input_arrays = _send_arrays_to_gpu(
+            gpu_input_arrays = self._send_arrays_to_gpu(
                 self.cpu_arrays[:n_arrs_needed], n_gpu_arrs_needed
             )
             transfer_time += get_time() - start
@@ -135,7 +132,7 @@ class PyCudaImplementation(ImagingTester):
                 )
 
             # Time the transfer from GPU to CPU
-            transfer_time += time_function(lambda: gpu_input_arrays[0].get)
+            transfer_time += time_function(lambda: gpu_input_arrays[0].get_async)
 
             # Free the GPU arrays
             free_memory_pool(gpu_input_arrays)
@@ -161,7 +158,7 @@ class PyCudaImplementation(ImagingTester):
 
                 # Time transferring the segments to the GPU
                 start = get_time()
-                gpu_input_arrays = _send_arrays_to_gpu(
+                gpu_input_arrays = self._send_arrays_to_gpu(
                     split_cpu_arrays, n_gpu_arrs_needed
                 )
                 transfer_time += get_time() - start
@@ -175,7 +172,7 @@ class PyCudaImplementation(ImagingTester):
                         lambda: alg(*gpu_input_arrays[:n_arrs_needed])
                     )
 
-                transfer_time += time_function(lambda: gpu_input_arrays[0].get)
+                transfer_time += time_function(lambda: gpu_input_arrays[0].get_async)
 
                 # Free the GPU arrays
                 free_memory_pool(gpu_input_arrays)
@@ -183,6 +180,6 @@ class PyCudaImplementation(ImagingTester):
         if transfer_time > 0 and operation_time > 0:
             self.print_operation_times(operation_time, alg_name, runs, transfer_time)
 
-        synchronise()
+        self.synchronise()
 
         return transfer_time + operation_time / runs

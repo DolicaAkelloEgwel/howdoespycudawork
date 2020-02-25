@@ -12,15 +12,14 @@ from imagingtester import (
     N_RUNS,
 )
 from numpy_background_correction import numpy_background_correction
-from pycuda_test_utils import (
-    PyCudaImplementation,
-    _send_arrays_to_gpu,
-    C_DTYPE,
-    LIB_NAME,
-    synchronise,
-)
+from pycuda_test_utils import PyCudaImplementation, C_DTYPE, LIB_NAME
 
-from write_and_read_results import ARRAY_SIZES, write_results_to_file, ADD_ARRAYS, BACKGROUND_CORRECTION
+from write_and_read_results import (
+    ARRAY_SIZES,
+    write_results_to_file,
+    ADD_ARRAYS,
+    BACKGROUND_CORRECTION,
+)
 
 mode = "elementwise kernel"
 
@@ -58,7 +57,7 @@ class PyCudaKernelImplementation(PyCudaImplementation):
     def warm_up(self):
         warm_up_size = (1, 1, 1)
         cpu_arrays = create_arrays(warm_up_size, DTYPE)
-        gpu_arrays = _send_arrays_to_gpu(cpu_arrays, 3)
+        gpu_arrays = self._send_arrays_to_gpu(cpu_arrays, 3)
         BackgroundCorrectionKernel(
             gpu_arrays[0],
             gpu_arrays[1],
@@ -88,11 +87,9 @@ for size in ARRAY_SIZES[:SIZES_SUBSET]:
 
     imaging_obj = PyCudaKernelImplementation(size, DTYPE)
 
-    synchronise()
     add_arrays_results.append(
         imaging_obj.timed_imaging_operation(N_RUNS, AddArraysKernel, "adding", 2, 2)
     )
-    synchronise()
     background_correction_results.append(
         imaging_obj.timed_imaging_operation(
             N_RUNS, elementwise_background_correction, "background correction", 3, 3
@@ -100,6 +97,8 @@ for size in ARRAY_SIZES[:SIZES_SUBSET]:
     )
 
 write_results_to_file([LIB_NAME, mode], ADD_ARRAYS, add_arrays_results)
-write_results_to_file([LIB_NAME, mode], BACKGROUND_CORRECTION, background_correction_results)
+write_results_to_file(
+    [LIB_NAME, mode], BACKGROUND_CORRECTION, background_correction_results
+)
 
 drv.Context.pop()
