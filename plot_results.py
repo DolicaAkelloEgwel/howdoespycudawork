@@ -8,12 +8,15 @@ from matplotlib import pyplot as plt
 
 results = read_results_from_files()
 
+colours = dict()
+
 # Plot Adding Arrays
 plt.subplot(2, 2, 2)
 plt.title("Average Time Taken To Add Two Arrays")
 
 for key in results.keys():
-    plt.plot(results[key][ADD_ARRAYS], label=key, marker=".")
+    p = plt.plot(results[key][ADD_ARRAYS], label=key, marker=".")
+    colours[key] = p[-1].get_color()
 
 plt.yscale("log")
 plt.xticks(range(len(TOTAL_PIXELS)), TOTAL_PIXELS)
@@ -23,7 +26,9 @@ plt.subplot(2, 2, 4)
 plt.title("Average Time Taken To Do Background Correction")
 
 for key in results.keys():
-    plt.plot(results[key][BACKGROUND_CORRECTION], label=key, marker=".")
+    plt.plot(
+        results[key][BACKGROUND_CORRECTION], label=key, marker=".", color=colours[key]
+    )
 
 plt.ylabel("Time Taken")
 plt.xticks(range(len(TOTAL_PIXELS)), TOTAL_PIXELS)
@@ -44,7 +49,7 @@ for key in results.keys():
     if key == "numpy":
         continue
     diff = list(map(truediv, results["numpy"][ADD_ARRAYS], results[key][ADD_ARRAYS]))
-    plt.plot(diff, label=key, marker=".")
+    plt.plot(diff, label=key, marker=".", color=colours[key])
     plt.xticks(range(len(TOTAL_PIXELS)), TOTAL_PIXELS)
     plt.xlabel("Number of Pixels/Elements")
 

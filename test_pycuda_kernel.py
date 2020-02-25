@@ -87,14 +87,17 @@ for size in ARRAY_SIZES[:SIZES_SUBSET]:
 
     imaging_obj = PyCudaKernelImplementation(size, DTYPE)
 
-    add_arrays_results.append(
-        imaging_obj.timed_imaging_operation(N_RUNS, AddArraysKernel, "adding", 2, 2)
+    avg_add = imaging_obj.timed_imaging_operation(
+        N_RUNS, AddArraysKernel, "adding", 2, 2
     )
-    background_correction_results.append(
-        imaging_obj.timed_imaging_operation(
-            N_RUNS, elementwise_background_correction, "background correction", 3, 3
-        )
+    avg_bc = imaging_obj.timed_imaging_operation(
+        N_RUNS, elementwise_background_correction, "background correction", 3, 3
     )
+
+    if avg_add > 0:
+        add_arrays_results.append(avg_add)
+    if avg_bc > 0:
+        background_correction_results.append(avg_bc)
 
 write_results_to_file([LIB_NAME, mode], ADD_ARRAYS, add_arrays_results)
 write_results_to_file(

@@ -7,6 +7,7 @@ python test_cupy.py
 python test_numba_parallel.py
 python test_numba_jit.py
 python test_numba_vectorise.py
-#python test_pycuda.py
+python test_pycuda_kernel.py
+# python test_pycuda_sourcemodule.py
 
 python plot_results.py

@@ -170,8 +170,10 @@ for size in ARRAY_SIZES[:SIZES_SUBSET]:
             N_RUNS, background_correction_fixed_clip, "background correction", 3, 4
         )
 
-        add_arrays_results.append(avg_add)
-        background_correction_results.append(avg_bc)
+        if avg_add > 0:
+            add_arrays_results.append(avg_add)
+        if avg_bc > 0:
+            background_correction_results.append(avg_bc)
 
     except cuda.cudadrv.driver.CudaAPIError:
         if PRINT_INFO:
