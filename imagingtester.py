@@ -16,6 +16,7 @@ SIZES_SUBSET = None
 DTYPE = None
 TEST_PARALLEL_NUMBA = None
 USE_NONPINNED_MEMORY = None
+FREE_MEMORY_FACTOR = None
 
 # Retrieve the benchmark parameters from the yaml file
 with open(os.path.join(os.getcwd(), "benchmarkparams.yaml")) as f:
@@ -26,6 +27,7 @@ with open(os.path.join(os.getcwd(), "benchmarkparams.yaml")) as f:
     SIZES_SUBSET = params["sizes_subset"]
     TEST_PARALLEL_NUMBA = params["test_parallel_numba"]
     USE_NONPINNED_MEMORY = params["use_nonpinned_memory"]
+    FREE_MEMORY_FACTOR = params["free_memory_factor"]
 
 
 def create_arrays(size_tuple, dtype):
@@ -124,6 +126,6 @@ def num_partitions_needed(cpu_arrays, n_arrays_needed, free_bytes):
         ceil(
             memory_needed_for_arrays(cpu_arrays, n_arrays_needed)
             * 1.0
-            / (free_bytes * 0.8)
+            / (free_bytes * FREE_MEMORY_FACTOR)
         )
     )
