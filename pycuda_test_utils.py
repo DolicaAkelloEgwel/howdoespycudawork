@@ -84,7 +84,8 @@ def _send_arrays_to_gpu(cpu_arrays, n_gpu_arrs_needed):
 
     for cpu_array in cpu_arrays:
         try:
-            gpu_arrays.append(gpuarray.to_gpu(cpu_array))
+            gpu_array = gpuarray.to_gpu(cpu_array)
+            gpu_arrays.append(gpu_array)
         except drv.MemoryError as e:
             free_memory_pool(gpu_arrays)
             print_memory_info_after_transfer_failure(cpu_array, n_gpu_arrs_needed)
@@ -120,29 +121,24 @@ class PyCudaImplementation(ImagingTester):
 
         if n_partitions_needed == 1:
 
-            cpu_result_array = np.empty_like(self.cpu_arrays[0])
-
             # Time transfer from CPU to GPU
             start = get_time()
             gpu_input_arrays = _send_arrays_to_gpu(
                 self.cpu_arrays[:n_arrs_needed], n_gpu_arrs_needed
             )
-            gpu_output_array = _send_arrays_to_gpu(
-                [cpu_result_array], n_gpu_arrs_needed
-            )[0]
             transfer_time += get_time() - start
 
             # Repeat the operation
             for _ in range(runs):
                 operation_time += time_function(
-                    lambda: alg(*gpu_input_arrays[:n_arrs_needed], gpu_output_array)
+                    lambda: alg(*gpu_input_arrays[:n_arrs_needed])
                 )
 
             # Time the transfer from GPU to CPU
-            transfer_time += time_function(lambda: gpu_output_array.get)
+            transfer_time += time_function(lambda: gpu_input_arrays[0].get)
 
             # Free the GPU arrays
-            free_memory_pool(gpu_input_arrays + [gpu_output_array])
+            free_memory_pool(gpu_input_arrays)
 
         else:
 
@@ -163,36 +159,26 @@ class PyCudaImplementation(ImagingTester):
                     for cpu_array in self.cpu_arrays
                 ]
 
-                cpu_result_array = np.empty_like(split_cpu_arrays[i])
-
                 # Time transferring the segments to the GPU
                 start = get_time()
                 gpu_input_arrays = _send_arrays_to_gpu(
                     split_cpu_arrays, n_gpu_arrs_needed
-                )
-                gpu_output_array_list = _send_arrays_to_gpu(
-                    [cpu_result_array], n_gpu_arrs_needed
                 )
                 transfer_time += get_time() - start
 
                 if not gpu_input_arrays:
                     return 0
 
-                if not gpu_output_array_list:
-                    return 0
-
-                gpu_output_array = gpu_output_array_list[0]
-
                 # Carry out the operation on the slices
                 for _ in range(runs):
                     operation_time += time_function(
-                        lambda: alg(*gpu_input_arrays[:n_arrs_needed], gpu_output_array)
+                        lambda: alg(*gpu_input_arrays[:n_arrs_needed])
                     )
 
-                transfer_time += time_function(lambda: gpu_output_array.get)
+                transfer_time += time_function(lambda: gpu_input_arrays[0].get)
 
                 # Free the GPU arrays
-                free_memory_pool(gpu_input_arrays + [gpu_output_array])
+                free_memory_pool(gpu_input_arrays)
 
         if transfer_time > 0 and operation_time > 0:
             self.print_operation_times(operation_time, alg_name, runs, transfer_time)

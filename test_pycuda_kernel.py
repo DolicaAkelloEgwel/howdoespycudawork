@@ -3,11 +3,27 @@ import pycuda.driver as drv
 from pycuda.elementwise import ElementwiseKernel
 import numpy as np
 
-from imagingtester import MINIMUM_PIXEL_VALUE, MAXIMUM_PIXEL_VALUE, create_arrays, DTYPE
+from imagingtester import (
+    MINIMUM_PIXEL_VALUE,
+    MAXIMUM_PIXEL_VALUE,
+    create_arrays,
+    DTYPE,
+    SIZES_SUBSET,
+    N_RUNS,
+)
 from numpy_background_correction import numpy_background_correction
-from pycuda_test_utils import PyCudaImplementation, _send_arrays_to_gpu, C_DTYPE
+from pycuda_test_utils import (
+    PyCudaImplementation,
+    _send_arrays_to_gpu,
+    C_DTYPE,
+    LIB_NAME,
+    synchronise,
+)
 
-# Create an element-wise Background Correction Function
+from write_and_read_results import ARRAY_SIZES, write_results_to_file, ADD_ARRAYS
+
+mode = "elementwise kernel"
+
 BackgroundCorrectionKernel = ElementwiseKernel(
     arguments="{0} * data, {0} * flat, const {0} * dark, const {0} MINIMUM_PIXEL_VALUE, const {0} MAXIMUM_PIXEL_VALUE".format(
         C_DTYPE
@@ -50,7 +66,7 @@ class PyCudaKernelImplementation(PyCudaImplementation):
             MINIMUM_PIXEL_VALUE,
             MAXIMUM_PIXEL_VALUE,
         )
-        AddArraysKernel(gpu_arrays[0], gpu_arrays[1], gpu_arrays[2])
+        AddArraysKernel(gpu_arrays[0], gpu_arrays[1])
 
 
 practice_array = np.ones(shape=(5, 5, 5)).astype(DTYPE)
@@ -64,5 +80,25 @@ cuda_data, cuda_dark, cuda_flat = [gpuarray.to_gpu(np_arr) for np_arr in np_arra
 elementwise_background_correction(cuda_data, cuda_flat, cuda_dark)
 numpy_background_correction(np_dark, np_data, np_flat)
 assert np.allclose(np_data, cuda_data.get())
+
+add_arrays_results = []
+background_correction_results = []
+
+for size in ARRAY_SIZES[:SIZES_SUBSET]:
+
+    imaging_obj = PyCudaKernelImplementation(size, DTYPE)
+
+    synchronise()
+    add_arrays_results.append(
+        imaging_obj.timed_imaging_operation(N_RUNS, AddArraysKernel, "adding", 2, 2)
+    )
+    synchronise()
+    background_correction_results.append(
+        imaging_obj.timed_imaging_operation(
+            N_RUNS, elementwise_background_correction, "background correction", 3, 3
+        )
+    )
+
+write_results_to_file([LIB_NAME, mode], ADD_ARRAYS, add_arrays_results)
 
 drv.Context.pop()
