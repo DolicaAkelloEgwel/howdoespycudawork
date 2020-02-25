@@ -20,7 +20,7 @@ from pycuda_test_utils import (
     synchronise,
 )
 
-from write_and_read_results import ARRAY_SIZES, write_results_to_file, ADD_ARRAYS
+from write_and_read_results import ARRAY_SIZES, write_results_to_file, ADD_ARRAYS, BACKGROUND_CORRECTION
 
 mode = "elementwise kernel"
 
@@ -100,5 +100,6 @@ for size in ARRAY_SIZES[:SIZES_SUBSET]:
     )
 
 write_results_to_file([LIB_NAME, mode], ADD_ARRAYS, add_arrays_results)
+write_results_to_file([LIB_NAME, mode], BACKGROUND_CORRECTION, background_correction_results)
 
 drv.Context.pop()
