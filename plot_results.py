@@ -34,7 +34,7 @@ plt.ylabel("Time Taken")
 plt.xticks(range(len(TOTAL_PIXELS)), TOTAL_PIXELS)
 plt.yscale("log")
 plt.xlabel("Number of Pixels/Elements")
-plt.legend(bbox_to_anchor=(1.04, 1), loc="upper left")
+plt.legend(bbox_to_anchor=(-0.2, 0), loc="upper left")
 
 # Plot Adding Speed Difference
 plt.subplot(2, 2, 1)
