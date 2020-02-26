@@ -34,6 +34,9 @@ else:
 LIB_NAME = "cupy"
 MAX_CUPY_MEMORY = 0.9  # Anything exceeding this seems to make malloc fail for me
 
+if SIZES_SUBSET == 5:
+    SIZES_SUBSET = 4  # Prevent sigkill
+
 
 def print_memory_metrics():
     """
