@@ -14,7 +14,7 @@ from imagingtester import (
     DTYPE,
     PRINT_INFO,
     get_array_partition_indices,
-    USE_NONPINNED_MEMORY,
+    USE_CUPY_NONPINNED_MEMORY,
     memory_needed_for_arrays,
 )
 from imagingtester import num_partitions_needed as number_of_partitions_needed
@@ -26,7 +26,7 @@ from write_and_read_results import (
     ARRAY_SIZES,
 )
 
-if USE_NONPINNED_MEMORY:
+if USE_CUPY_NONPINNED_MEMORY:
     pinned_memory_mode = [True, False]
 else:
     pinned_memory_mode = [True]

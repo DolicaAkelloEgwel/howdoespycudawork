@@ -15,7 +15,7 @@ N_RUNS = None
 SIZES_SUBSET = None
 DTYPE = None
 TEST_PARALLEL_NUMBA = None
-USE_NONPINNED_MEMORY = None
+USE_CUPY_NONPINNED_MEMORY = None
 FREE_MEMORY_FACTOR = None
 
 # Retrieve the benchmark parameters from the yaml file
@@ -26,7 +26,7 @@ with open(os.path.join(os.getcwd(), "benchmarkparams.yaml")) as f:
     DTYPE = params["dtype"]
     SIZES_SUBSET = params["sizes_subset"]
     TEST_PARALLEL_NUMBA = params["test_parallel_numba"]
-    USE_NONPINNED_MEMORY = params["use_nonpinned_memory"]
+    USE_CUPY_NONPINNED_MEMORY = params["use_cupy_nonpinned_memory"]
     FREE_MEMORY_FACTOR = params["free_memory_factor"]
 
 
