@@ -34,9 +34,6 @@ else:
 LIB_NAME = "cupy"
 MAX_CUPY_MEMORY = 0.9  # Anything exceeding this seems to make malloc fail for me
 
-if SIZES_SUBSET == 5:
-    SIZES_SUBSET = 4  # Prevent sigkill
-
 
 def print_memory_metrics():
     """
@@ -308,7 +305,7 @@ class CupyImplementation(ImagingTester):
         return transfer_time + operation_time / runs
 
 
-set_allocator(MemoryPool(malloc_managed).malloc)
+# set_allocator(MemoryPool(malloc_managed).malloc)
 
 # Allocate CUDA memory
 mempool = cp.get_default_memory_pool()
@@ -340,6 +337,11 @@ for use_pinned_memory in pinned_memory_mode:
     add_arrays_results = []
     background_correction_results = []
 
+    if use_pinned_memory:
+        memory_string = "with pinned memory"
+    else:
+        memory_string = "without pinned memory"
+
     for size in ARRAY_SIZES[:SIZES_SUBSET]:
 
         imaging_obj = CupyImplementation(size, DTYPE, use_pinned_memory)
@@ -356,12 +358,9 @@ for use_pinned_memory in pinned_memory_mode:
         if avg_bc > 0:
             background_correction_results.append(avg_bc)
 
-    if use_pinned_memory:
-        memory_string = "with pinned memory"
-    else:
-        memory_string = "without pinned memory"
-
-    write_results_to_file([LIB_NAME, memory_string], ADD_ARRAYS, add_arrays_results)
-    write_results_to_file(
-        [LIB_NAME, memory_string], BACKGROUND_CORRECTION, background_correction_results
-    )
+        write_results_to_file([LIB_NAME, memory_string], ADD_ARRAYS, add_arrays_results)
+        write_results_to_file(
+            [LIB_NAME, memory_string],
+            BACKGROUND_CORRECTION,
+            background_correction_results,
+        )
