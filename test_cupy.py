@@ -357,7 +357,7 @@ class CupyImplementation(ImagingTester):
             transfer_time += time_function(gpu_arrays[0].get)
 
             # Free the GPU arrays
-            free_memory_pool(gpu_arrays)
+            free_memory_pool(gpu_arrays + [median_gpu_array])
 
         else:
 
@@ -408,7 +408,7 @@ class CupyImplementation(ImagingTester):
                 transfer_time += time_function(gpu_arrays[0].get)
 
                 # Free GPU arrays
-                free_memory_pool(gpu_arrays)
+                free_memory_pool(gpu_arrays + [median_gpu_array])
 
         self.print_operation_times(
             operation_time=operation_time,
