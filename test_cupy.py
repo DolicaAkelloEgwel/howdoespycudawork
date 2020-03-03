@@ -140,7 +140,7 @@ def cupy_background_correction(
     )  # For some reason using the 'out' parameter doesn't work
 
 
-def cupy_median_filter(data):
+def cupy_median_filter(data, data_copy, median_array):
     pass
 
 
@@ -323,9 +323,12 @@ class CupyImplementation(ImagingTester):
         # Synchronize and free memory before making an assessment about available space
         free_memory_pool()
 
+        median_result_array = np.empty(shape=filter_size[0] * filter_size[1])
+        median_gpu_array = self._send_arrays_to_gpu(median_result_array)
+
         # Determine the number of partitions required
         n_partitions_needed = number_of_partitions_needed(
-            self.cpu_arrays[:1], get_free_bytes()
+            self.cpu_arrays[:1] + [median_result_array], get_free_bytes()
         )
 
         transfer_time = 0
@@ -346,7 +349,9 @@ class CupyImplementation(ImagingTester):
 
             # Repeat the operation
             for _ in range(runs):
-                operation_time += time_function(lambda: cupy_median_filter(gpu_arrays))
+                operation_time += time_function(
+                    lambda: cupy_median_filter(*gpu_arrays, median_gpu_array)
+                )
 
             # Time the transfer from GPU to CPU
             transfer_time += time_function(gpu_arrays[0].get)
@@ -389,7 +394,7 @@ class CupyImplementation(ImagingTester):
                     # Carry out the operation on the slices
                     for _ in range(runs):
                         operation_time += time_function(
-                            lambda: cupy_median_filter(*gpu_arrays)
+                            lambda: cupy_median_filter(*gpu_arrays, median_gpu_array)
                         )
                 except cp.cuda.memory.OutOfMemoryError as e:
                     print(
