@@ -326,7 +326,7 @@ class CupyImplementation(ImagingTester):
         median_result_array = np.empty(shape=filter_size[0] * filter_size[1])
         median_gpu_array = self._send_arrays_to_gpu(median_result_array)
 
-        # Determine the number of partitions required
+        # Determine the number of partitions required (not taking the padding into account)
         n_partitions_needed = number_of_partitions_needed(
             self.cpu_arrays[:1] + [median_result_array], get_free_bytes()
         )
@@ -340,11 +340,10 @@ class CupyImplementation(ImagingTester):
             padded_array = np.pad(
                 self.cpu_arrays[0], pad_width=filter_size[0] // 2, mode=REFLECT_MODE
             )
-            copy_padded_array = np.copy(padded_array)
 
             # Time the transfer from CPU to GPU
             start = get_synchronized_time()
-            gpu_arrays = self._send_arrays_to_gpu([padded_array, copy_padded_array])
+            gpu_arrays = self._send_arrays_to_gpu([self.cpu_arrays[0], padded_array])
             transfer_time = get_synchronized_time() - start
 
             # Repeat the operation
@@ -383,7 +382,7 @@ class CupyImplementation(ImagingTester):
 
                 # Time transferring the segments to the GPU
                 start = get_synchronized_time()
-                gpu_arrays = self._send_arrays_to_gpu([padded_array, copy_padded_array])
+                gpu_arrays = self._send_arrays_to_gpu([split_cpu_array, padded_array])
                 transfer_time += get_synchronized_time() - start
 
                 # Return 0 when GPU is out of space
