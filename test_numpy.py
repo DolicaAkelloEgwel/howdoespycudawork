@@ -3,7 +3,7 @@ import time
 import numpy as np
 
 from imagingtester import ImagingTester, SIZES_SUBSET, DTYPE, N_RUNS
-from numpy_background_correction import numpy_background_correction
+from numpy_scipy_imaging_filters import numpy_background_correction
 from write_and_read_results import (
     write_results_to_file,
     ARRAY_SIZES,

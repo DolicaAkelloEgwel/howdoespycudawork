@@ -108,8 +108,8 @@ def print_array_creation_time(time):
     print("Array creation time: %ss" % time)
 
 
-def memory_needed_for_arrays(cpu_array, n_arrays_needed):
-    return sys.getsizeof(cpu_array) * n_arrays_needed
+def memory_needed_for_arrays(cpu_arrays):
+    return sum([sys.getsizeof(cpu_array) for cpu_array in cpu_arrays])
 
 
 def get_array_partition_indices(x_shape, n_partitions):
@@ -121,10 +121,10 @@ def get_array_partition_indices(x_shape, n_partitions):
     return split_indices
 
 
-def num_partitions_needed(cpu_arrays, n_arrays_needed, free_bytes):
+def num_partitions_needed(cpu_arrays, free_bytes):
     return int(
         ceil(
-            memory_needed_for_arrays(cpu_arrays, n_arrays_needed)
+            memory_needed_for_arrays(cpu_arrays)
             * 1.0
             / (free_bytes * FREE_MEMORY_FACTOR)
         )

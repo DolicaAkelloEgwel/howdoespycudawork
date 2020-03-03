@@ -1,5 +1,5 @@
-runs: 5
-sizes_subset: 5 # max is 5 for now
+runs: 1
+sizes_subset: 3 # max is 5 for now
 dtype: "float64"
 print_info: true
 test_parallel_numba: false

@@ -20,7 +20,7 @@ from numba_test_utils import (
     get_free_bytes,
     NumbaImplementation,
 )
-from numpy_background_correction import numpy_background_correction
+from numpy_scipy_imaging_filters import numpy_background_correction
 from write_and_read_results import (
     write_results_to_file,
     ADD_ARRAYS,

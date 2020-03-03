@@ -11,7 +11,7 @@ from imagingtester import (
     SIZES_SUBSET,
     N_RUNS,
 )
-from numpy_background_correction import numpy_background_correction
+from numpy_scipy_imaging_filters import numpy_background_correction
 from pycuda_test_utils import PyCudaImplementation, C_DTYPE, LIB_NAME
 
 from write_and_read_results import (

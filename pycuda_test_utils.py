@@ -58,18 +58,15 @@ def get_used_bytes():
     return get_total_bytes() - get_free_bytes()
 
 
-def print_memory_info_after_transfer_failure(cpu_array, n_gpu_arrs_needed):
-    print(
-        "Failed to make %s GPU arrays of size %s."
-        % (n_gpu_arrs_needed, cpu_array.shape)
-    )
+def print_memory_info_after_transfer_failure(cpu_arrays):
+    print("Failed to make GPU arrays of size %s." % (cpu_arrays.shape))
     print(
         "Used bytes:",
         get_used_bytes(),
         "/ Total bytes:",
         get_total_bytes(),
         "/ Space needed:",
-        memory_needed_for_arrays(cpu_array, n_gpu_arrs_needed),
+        memory_needed_for_arrays(cpu_arrays),
     )
 
 
@@ -79,7 +76,7 @@ class PyCudaImplementation(ImagingTester):
         self.lib_name = LIB_NAME
         self.streams = []
 
-    def _send_arrays_to_gpu(self, cpu_arrays, n_gpu_arrs_needed):
+    def _send_arrays_to_gpu(self, cpu_arrays):
 
         gpu_arrays = []
 
@@ -90,7 +87,7 @@ class PyCudaImplementation(ImagingTester):
                 )
             except drv.MemoryError as e:
                 free_memory_pool(gpu_arrays)
-                print_memory_info_after_transfer_failure(cpu_array, n_gpu_arrs_needed)
+                print_memory_info_after_transfer_failure(cpu_arrays)
                 print(e)
                 return []
             stream = drv.Stream()
@@ -109,9 +106,7 @@ class PyCudaImplementation(ImagingTester):
         self, runs, alg, alg_name, n_arrs_needed, n_gpu_arrs_needed
     ):
 
-        n_partitions_needed = num_partitions_needed(
-            self.cpu_arrays[0], n_gpu_arrs_needed, get_free_bytes()
-        )
+        n_partitions_needed = num_partitions_needed(self.cpu_arrays, get_free_bytes())
 
         transfer_time = 0
         operation_time = 0
@@ -141,7 +136,7 @@ class PyCudaImplementation(ImagingTester):
 
             # Determine the number of partitions required again (to be on the safe side)
             n_partitions_needed = num_partitions_needed(
-                self.cpu_arrays[0], n_gpu_arrs_needed, get_free_bytes()
+                self.cpu_arrays, get_free_bytes()
             )
 
             indices = get_array_partition_indices(
