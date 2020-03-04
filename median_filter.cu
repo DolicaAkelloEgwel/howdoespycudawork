@@ -18,27 +18,31 @@ extern "C"{
         }
         return neighb_array[N / 2 + 1];
     }
-    __global__ void median_filter(float*** data_array, const float*** padded_array, const int N_IMAGES, const int X, const int Y, const int pad_height, const int pad_width, const int filter_width, const int neighb_size)
+    __global__ void median_filter(float*** data_array, const float*** padded_array, const int N_IMAGES, const int X, const int Y, const int filter_height, const int filter_width)
     {
         unsigned int id_img = blockIdx.x*blockDim.x + threadIdx.x;
         unsigned int id_x = blockIdx.y*blockDim.y + threadIdx.y;
         unsigned int id_y = blockIdx.z*blockDim.z + threadIdx.z;
+        unsigned int n_counter = 0;
 
-        if ((id_img > N_IMAGES) || (id_x > X) || (id_y > Y))
-            return;
 
-        float neighb_array[20];
-//        cudaMalloc((void**)&neighb_array, neighb_size * sizeof(float));
-
-        for (int i = id_x - pad_height; i < id_x + pad_height; i++)
+        if ((id_img < N_IMAGES) && (id_x < X) && (id_y < Y))
         {
-            for (int j = id_y - pad_width; j < id_y + pad_width; j++)
-            {
-                neighb_array[i * filter_width + j] = padded_array[id_img][id_x][id_y];
-            }
-        }
+            float neighb_array[20];
 
-        data_array[id_img][id_x][id_y] = find_median(neighb_array, neighb_size);
-//        cudaFree(neighb_array);
+            printf("Entering loop\n");
+            for (int i = id_x - (filter_height / 2 ); i < id_x + (filter_height / 2); i++)
+            {
+                for (int j = id_y - (filter_width / 2); j < id_y + (filter_width / 2); j++)
+                {
+                    neighb_array[n_counter] = padded_array[id_img][id_x][id_y];
+                    printf("Array index %d %d %d / idx: %d / idy: %d\n", id_img, i, j, id_x, id_y);
+                    n_counter = n_counter + 1;
+                }
+            }
+//            printf("Last value in neighbour array: %lf\n", neighb_array[filter_height * filter_width - 1]);
+
+//            data_array[id_img][id_x][id_y] = find_median(neighb_array, filter_height * filter_width);
+        }
     }
 }
