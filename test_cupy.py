@@ -17,6 +17,7 @@ from imagingtester import (
     get_array_partition_indices,
     USE_CUPY_NONPINNED_MEMORY,
     memory_needed_for_arrays,
+    load_median_filter_file,
 )
 from imagingtester import num_partitions_needed as number_of_partitions_needed
 from numpy_scipy_imaging_filters import numpy_background_correction
@@ -140,8 +141,29 @@ def cupy_background_correction(
     )  # For some reason using the 'out' parameter doesn't work
 
 
-def cupy_median_filter(data, data_copy, median_array):
-    pass
+loaded_from_source = load_median_filter_file()
+
+median_filter_module = cp.RawModule(code=loaded_from_source, backend="nvcc")
+median_filter = median_filter_module.get_function("median_filter")
+
+
+def cupy_median_filter(data, padded_data, filter_height, filter_width, pad_width):
+    N = 8
+    print(padded_data.shape)
+    median_filter(
+        (N, N, N),
+        (N, N, N),
+        (
+            data,
+            padded_data,
+            data.shape[0],
+            data.shape[1],
+            data.shape[2],
+            filter_height,
+            filter_width,
+            pad_width ** 2,
+        ),
+    )
 
 
 class CupyImplementation(ImagingTester):
@@ -378,7 +400,6 @@ class CupyImplementation(ImagingTester):
                 padded_array = np.pad(
                     split_cpu_array, pad_width=filter_size[0] // 2, mode=REFLECT_MODE
                 )
-                copy_padded_array = np.copy(padded_array)
 
                 # Time transferring the segments to the GPU
                 start = get_synchronized_time()
@@ -441,6 +462,18 @@ np_data, np_dark, np_flat = [cp_arr.get() for cp_arr in random_test_arrays]
 cupy_background_correction(cp_data, cp_dark, cp_flat)
 numpy_background_correction(np_data, np_dark, np_flat)
 assert np.allclose(np_data, cp_data.get())
+
+filter_height = 5
+filter_width = 3
+pad_height = filter_height // 2
+pad_width = filter_width // 2
+padded_data = cp.pad(
+    cp_data,
+    pad_width=((0, 0), (pad_height, pad_height), (pad_width, pad_width)),
+    mode=REFLECT_MODE,
+)
+cupy_median_filter(cp_data, padded_data, filter_height, filter_width, pad_width)
+exit()
 
 # Getting rid of test arrays
 free_memory_pool(random_test_arrays + [all_one])
