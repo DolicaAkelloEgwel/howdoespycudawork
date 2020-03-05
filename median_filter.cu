@@ -18,14 +18,17 @@ extern "C"{
         }
         return neighb_array[N / 2 + 1];
     }
-    __global__ void median_filter(float* data_array, const float* padded_array, const int N_IMAGES, const int X, const int Y, float* neighb_array, const int filter_height, const int filter_width)
+    __global__ void median_filter(float* data_array, const float* padded_array, const int N_IMAGES, const int X, const int Y, const int filter_height, const int filter_width)
     {
         unsigned int id_img = blockIdx.x*blockDim.x + threadIdx.x;
         unsigned int id_x = blockIdx.y*blockDim.y + threadIdx.y;
         unsigned int id_y = blockIdx.z*blockDim.z + threadIdx.z;
         unsigned int n_counter = 0;
         unsigned int img_size =  X * Y;
-        unsigned int padded_img_size =  (X + filter_height / 2) * (Y + filter_width / 2);
+        unsigned int padded_img_size =  (X + filter_height - 1) * (Y + filter_width - 1);
+        unsigned int padded_img_width =  X + filter_height - 1;
+
+        float neighb_array[20];
 
         if ((id_img < N_IMAGES) && (id_x < X) && (id_y < Y))
         {
@@ -33,7 +36,7 @@ extern "C"{
             {
                 for (int j = id_y; j < id_y + filter_width; j++)
                 {
-                    neighb_array[n_counter] = padded_array[(id_img * padded_img_size) + (i * X) + j];
+                    neighb_array[n_counter] = padded_array[(id_img * padded_img_size) + (padded_img_width * (filter_height / 2 + i)) + (filter_width / 2) + j];
                     printf("Array index %d %d %d / idx: %d / idy: %d\n", id_img, i, j, id_x, id_y);
                     n_counter += 1;
                 }
