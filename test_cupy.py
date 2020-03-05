@@ -147,9 +147,10 @@ median_filter_module = cp.RawModule(code=loaded_from_source, backend="nvcc")
 median_filter = median_filter_module.get_function("median_filter")
 
 
-def cupy_median_filter(data, padded_data, filter_height, filter_width, pad_width):
+def cupy_median_filter(data, padded_data, filter_height, filter_width):
     N = 8
     print(padded_data.shape)
+    print(data.shape)
     median_filter(
         (N, N, N),
         (N, N, N),
@@ -159,9 +160,9 @@ def cupy_median_filter(data, padded_data, filter_height, filter_width, pad_width
             data.shape[0],
             data.shape[1],
             data.shape[2],
+            cp.empty(filter_width * filter_height),
             filter_height,
             filter_width,
-            pad_width ** 2,
         ),
     )
 
@@ -472,7 +473,7 @@ padded_data = cp.pad(
     pad_width=((0, 0), (pad_height, pad_height), (pad_width, pad_width)),
     mode=REFLECT_MODE,
 )
-cupy_median_filter(cp_data, padded_data, filter_height, filter_width, pad_width)
+cupy_median_filter(data=cp_data, padded_data=padded_data, filter_height=filter_height, filter_width=filter_width)
 exit()
 
 # Getting rid of test arrays
