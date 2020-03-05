@@ -36,8 +36,8 @@ extern "C"{
             {
                 for (int j = id_y; j < id_y + filter_width; j++)
                 {
-                    neighb_array[n_counter] = padded_array[(id_img * padded_img_size) + (padded_img_width * (filter_height / 2 + i)) + (filter_width / 2) + j];
-                    printf("Array index %d %d %d / idx: %d / idy: %d\n", id_img, i, j, id_x, id_y);
+//                    neighb_array[n_counter] = padded_array[(id_img * padded_img_size) + (padded_img_width * (filter_height / 2 + i)) + (filter_width / 2) + j];
+                    neighb_array[n_counter] = padded_array[(id_img * padded_img_size) + (i * padded_img_width) + j];
                     n_counter += 1;
                 }
             }
