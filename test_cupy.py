@@ -20,7 +20,7 @@ from imagingtester import (
     load_median_filter_file,
 )
 from imagingtester import num_partitions_needed as number_of_partitions_needed
-from numpy_scipy_imaging_filters import numpy_background_correction
+from numpy_scipy_imaging_filters import numpy_background_correction, scipy_median_filter
 from write_and_read_results import (
     write_results_to_file,
     ADD_ARRAYS,
@@ -149,8 +149,6 @@ median_filter = median_filter_module.get_function("median_filter")
 
 def cupy_median_filter(data, padded_data, filter_height, filter_width):
     N = 8
-    print(padded_data.shape)
-    print(data.shape)
     median_filter(
         (N, N, N),
         (N, N, N),
@@ -160,7 +158,6 @@ def cupy_median_filter(data, padded_data, filter_height, filter_width):
             data.shape[0],
             data.shape[1],
             data.shape[2],
-            cp.empty(filter_width * filter_height),
             filter_height,
             filter_width,
         ),
@@ -464,8 +461,9 @@ cupy_background_correction(cp_data, cp_dark, cp_flat)
 numpy_background_correction(np_data, np_dark, np_flat)
 assert np.allclose(np_data, cp_data.get())
 
-filter_height = 5
+filter_height = 3
 filter_width = 3
+filter_size = (filter_width, filter_height)
 pad_height = filter_height // 2
 pad_width = filter_width // 2
 padded_data = cp.pad(
@@ -479,6 +477,8 @@ cupy_median_filter(
     filter_height=filter_height,
     filter_width=filter_width,
 )
+scipy_median_filter(np_data, size=filter_size)
+assert np.allclose(np_data[0], cp_data.get()[0])
 exit()
 
 # Getting rid of test arrays

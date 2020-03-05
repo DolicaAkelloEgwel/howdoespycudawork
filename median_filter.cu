@@ -16,7 +16,7 @@ extern "C"{
             }
             neighb_array[j + 1] = key;
         }
-        return neighb_array[N / 2 + 1];
+        return neighb_array[N / 2];
     }
     __global__ void median_filter(float* data_array, const float* padded_array, const int N_IMAGES, const int X, const int Y, const int filter_height, const int filter_width)
     {
@@ -36,11 +36,19 @@ extern "C"{
             {
                 for (int j = id_y; j < id_y + filter_width; j++)
                 {
-//                    neighb_array[n_counter] = padded_array[(id_img * padded_img_size) + (padded_img_width * (filter_height / 2 + i)) + (filter_width / 2) + j];
                     neighb_array[n_counter] = padded_array[(id_img * padded_img_size) + (i * padded_img_width) + j];
                     n_counter += 1;
                 }
             }
+
+            if (0)
+            {
+                find_median(neighb_array, filter_height * filter_width);
+                for (int i = 0; i < filter_width * filter_height; i++)
+                    printf("%f ", neighb_array[i]);
+                printf("\n");
+            }
+
             data_array[(id_img * img_size) + (id_x * X) + id_y] = find_median(neighb_array, filter_height * filter_width);
         }
     }
