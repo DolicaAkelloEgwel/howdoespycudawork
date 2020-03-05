@@ -388,54 +388,62 @@ class CupyImplementation(ImagingTester):
             free_memory_pool([gpu_data_array, padded_array])
 
         else:
-            pass
-            # # Determine the number of partitions required again (to be on the safe side)
-            # n_partitions_needed = number_of_partitions_needed(
-            #     self.cpu_arrays[0], get_free_bytes()
-            # )
-            #
-            # indices = get_array_partition_indices(
-            #     self.cpu_arrays[0].shape[0], n_partitions_needed
-            # )
-            #
-            # for i in range(n_partitions_needed):
-            #
-            #     # Retrieve the segments used for this iteration of the operation
-            #     split_cpu_array = self.cpu_arrays[0][indices[i][0] : indices[i][1] :, :]
-            #
-            #     # TODO: time this too
-            #     padded_array = np.pad(
-            #         split_cpu_array, pad_width=filter_size[0] // 2, mode=REFLECT_MODE
-            #     )
-            #
-            #     # Time transferring the segments to the GPU
-            #     start = get_synchronized_time()
-            #     gpu_arrays = self._send_arrays_to_gpu([split_cpu_array, padded_array])
-            #     transfer_time += get_synchronized_time() - start
-            #
-            #     # Return 0 when GPU is out of space
-            #     if not gpu_arrays:
-            #         return 0
-            #
-            #     try:
-            #         # Carry out the operation on the slices
-            #         for _ in range(runs):
-            #             operation_time += time_function(
-            #                 lambda: cupy_median_filter(*gpu_arrays, median_gpu_array)
-            #             )
-            #     except cp.cuda.memory.OutOfMemoryError as e:
-            #         print(
-            #             "Unable to make extra arrays during operation despite successful transfer."
-            #         )
-            #         print(e)
-            #         free_memory_pool(gpu_arrays)
-            #         return 0
-            #
-            #     # Store time taken to transfer result
-            #     transfer_time += time_function(gpu_arrays[0].get)
-            #
-            #     # Free GPU arrays
-            #     free_memory_pool(gpu_arrays + [median_gpu_array])
+
+            # Determine the number of partitions required again (to be on the safe side)
+            n_partitions_needed = number_of_partitions_needed(
+                self.cpu_arrays[0], get_free_bytes()
+            )
+
+            indices = get_array_partition_indices(
+                self.cpu_arrays[0].shape[0], n_partitions_needed
+            )
+
+            for i in range(n_partitions_needed):
+
+                # Retrieve the segments used for this iteration of the operation
+                split_cpu_array = self.cpu_arrays[0][indices[i][0] : indices[i][1] :, :]
+
+                # Time transferring the segments to the GPU
+                start = get_synchronized_time()
+                gpu_data_array = self._send_arrays_to_gpu([split_cpu_array])
+                gpu_padded_array = cp.pad(
+                    gpu_data_array,
+                    pad_width=(
+                        (0, 0),
+                        (pad_width, pad_width),
+                        (pad_height, pad_height),
+                    ),
+                )
+                transfer_time += get_synchronized_time() - start
+
+                # Return 0 when GPU is out of space
+                if not gpu_data_array:
+                    return 0
+
+                try:
+                    # Carry out the operation on the slices
+                    for _ in range(runs):
+                        operation_time += time_function(
+                            lambda: cupy_median_filter(
+                                gpu_data_array,
+                                gpu_padded_array,
+                                filter_height,
+                                filter_width,
+                            )
+                        )
+                except cp.cuda.memory.OutOfMemoryError as e:
+                    print(
+                        "Unable to make extra arrays during operation despite successful transfer."
+                    )
+                    print(e)
+                    free_memory_pool(gpu_data_array)
+                    return 0
+
+                # Store time taken to transfer result
+                transfer_time += time_function(gpu_data_array[0].get)
+
+                # Free GPU arrays
+                free_memory_pool([gpu_padded_array, gpu_data_array])
 
         self.print_operation_times(
             operation_time=operation_time,
@@ -473,7 +481,7 @@ assert np.allclose(np_data, cp_data.get())
 # These need to be odd values and need to be equal
 filter_height = 3
 filter_width = 3
-filter_size = (filter_width, filter_height)
+filter_size = (filter_height, filter_width)
 
 # Create a padded array in the GPU
 pad_height = filter_height // 2
