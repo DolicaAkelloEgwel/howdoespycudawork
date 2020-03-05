@@ -148,7 +148,7 @@ median_filter = median_filter_module.get_function("median_filter")
 
 
 def cupy_median_filter(data, padded_data, filter_height, filter_width):
-    N = 8
+    N = 10
     median_filter(
         (N, N, N),
         (N, N, N),
@@ -343,90 +343,99 @@ class CupyImplementation(ImagingTester):
         # Synchronize and free memory before making an assessment about available space
         free_memory_pool()
 
-        median_result_array = np.empty(shape=filter_size[0] * filter_size[1])
-        median_gpu_array = self._send_arrays_to_gpu(median_result_array)
-
         # Determine the number of partitions required (not taking the padding into account)
         n_partitions_needed = number_of_partitions_needed(
-            self.cpu_arrays[:1] + [median_result_array], get_free_bytes()
+            self.cpu_arrays[:1], get_free_bytes()
         )
 
         transfer_time = 0
         operation_time = 0
 
+        pad_height = filter_size[1] // 2
+        pad_width = filter_size[0] // 2
+
+        filter_height = filter_size[0]
+        filter_width = filter_size[1]
+
         if n_partitions_needed == 1:
 
             # TODO: time this too
-            padded_array = np.pad(
-                self.cpu_arrays[0], pad_width=filter_size[0] // 2, mode=REFLECT_MODE
-            )
+            # padded_array = np.pad(
+            #     self.cpu_arrays[0], pad_width=filter_size[0] // 2, mode=REFLECT_MODE
+            # )
 
             # Time the transfer from CPU to GPU
             start = get_synchronized_time()
-            gpu_arrays = self._send_arrays_to_gpu([self.cpu_arrays[0], padded_array])
+            gpu_data_array = self._send_arrays_to_gpu([self.cpu_arrays[0]])
+            padded_array = cp.pad(
+                gpu_data_array,
+                pad_width=((0, 0), (pad_width, pad_width), (pad_height, pad_height)),
+            )
             transfer_time = get_synchronized_time() - start
 
             # Repeat the operation
             for _ in range(runs):
                 operation_time += time_function(
-                    lambda: cupy_median_filter(*gpu_arrays, median_gpu_array)
+                    lambda: cupy_median_filter(
+                        gpu_data_array, padded_data, filter_height, filter_width
+                    )
                 )
 
             # Time the transfer from GPU to CPU
-            transfer_time += time_function(gpu_arrays[0].get)
+            transfer_time += time_function(gpu_data_array[0].get)
 
             # Free the GPU arrays
-            free_memory_pool(gpu_arrays + [median_gpu_array])
+            free_memory_pool([gpu_data_array, padded_array])
 
         else:
-
-            # Determine the number of partitions required again (to be on the safe side)
-            n_partitions_needed = number_of_partitions_needed(
-                self.cpu_arrays[0], get_free_bytes()
-            )
-
-            indices = get_array_partition_indices(
-                self.cpu_arrays[0].shape[0], n_partitions_needed
-            )
-
-            for i in range(n_partitions_needed):
-
-                # Retrieve the segments used for this iteration of the operation
-                split_cpu_array = self.cpu_arrays[0][indices[i][0] : indices[i][1] :, :]
-
-                # TODO: time this too
-                padded_array = np.pad(
-                    split_cpu_array, pad_width=filter_size[0] // 2, mode=REFLECT_MODE
-                )
-
-                # Time transferring the segments to the GPU
-                start = get_synchronized_time()
-                gpu_arrays = self._send_arrays_to_gpu([split_cpu_array, padded_array])
-                transfer_time += get_synchronized_time() - start
-
-                # Return 0 when GPU is out of space
-                if not gpu_arrays:
-                    return 0
-
-                try:
-                    # Carry out the operation on the slices
-                    for _ in range(runs):
-                        operation_time += time_function(
-                            lambda: cupy_median_filter(*gpu_arrays, median_gpu_array)
-                        )
-                except cp.cuda.memory.OutOfMemoryError as e:
-                    print(
-                        "Unable to make extra arrays during operation despite successful transfer."
-                    )
-                    print(e)
-                    free_memory_pool(gpu_arrays)
-                    return 0
-
-                # Store time taken to transfer result
-                transfer_time += time_function(gpu_arrays[0].get)
-
-                # Free GPU arrays
-                free_memory_pool(gpu_arrays + [median_gpu_array])
+            pass
+            # # Determine the number of partitions required again (to be on the safe side)
+            # n_partitions_needed = number_of_partitions_needed(
+            #     self.cpu_arrays[0], get_free_bytes()
+            # )
+            #
+            # indices = get_array_partition_indices(
+            #     self.cpu_arrays[0].shape[0], n_partitions_needed
+            # )
+            #
+            # for i in range(n_partitions_needed):
+            #
+            #     # Retrieve the segments used for this iteration of the operation
+            #     split_cpu_array = self.cpu_arrays[0][indices[i][0] : indices[i][1] :, :]
+            #
+            #     # TODO: time this too
+            #     padded_array = np.pad(
+            #         split_cpu_array, pad_width=filter_size[0] // 2, mode=REFLECT_MODE
+            #     )
+            #
+            #     # Time transferring the segments to the GPU
+            #     start = get_synchronized_time()
+            #     gpu_arrays = self._send_arrays_to_gpu([split_cpu_array, padded_array])
+            #     transfer_time += get_synchronized_time() - start
+            #
+            #     # Return 0 when GPU is out of space
+            #     if not gpu_arrays:
+            #         return 0
+            #
+            #     try:
+            #         # Carry out the operation on the slices
+            #         for _ in range(runs):
+            #             operation_time += time_function(
+            #                 lambda: cupy_median_filter(*gpu_arrays, median_gpu_array)
+            #             )
+            #     except cp.cuda.memory.OutOfMemoryError as e:
+            #         print(
+            #             "Unable to make extra arrays during operation despite successful transfer."
+            #         )
+            #         print(e)
+            #         free_memory_pool(gpu_arrays)
+            #         return 0
+            #
+            #     # Store time taken to transfer result
+            #     transfer_time += time_function(gpu_arrays[0].get)
+            #
+            #     # Free GPU arrays
+            #     free_memory_pool(gpu_arrays + [median_gpu_array])
 
         self.print_operation_times(
             operation_time=operation_time,
@@ -453,7 +462,7 @@ assert cp.all(all_one == 2)
 
 # Checking the two background corrections get the same result
 random_test_arrays = [
-    cp.random.uniform(low=0.0, high=20, size=(5, 5, 5)) for _ in range(3)
+    cp.random.uniform(low=0.0, high=20, size=(10, 10, 10)) for _ in range(3)
 ]
 cp_data, cp_dark, cp_flat = random_test_arrays
 np_data, np_dark, np_flat = [cp_arr.get() for cp_arr in random_test_arrays]
@@ -461,9 +470,12 @@ cupy_background_correction(cp_data, cp_dark, cp_flat)
 numpy_background_correction(np_data, np_dark, np_flat)
 assert np.allclose(np_data, cp_data.get())
 
+# These need to be odd values and need to be equal
 filter_height = 3
 filter_width = 3
 filter_size = (filter_width, filter_height)
+
+# Create a padded array in the GPU
 pad_height = filter_height // 2
 pad_width = filter_width // 2
 padded_data = cp.pad(
@@ -471,15 +483,18 @@ padded_data = cp.pad(
     pad_width=((0, 0), (pad_height, pad_height), (pad_width, pad_width)),
     mode=REFLECT_MODE,
 )
+
+# Run the median filter on the GPU
 cupy_median_filter(
     data=cp_data,
     padded_data=padded_data,
     filter_height=filter_height,
     filter_width=filter_width,
 )
+# Run the scipy median filter
 scipy_median_filter(np_data, size=filter_size)
-assert np.allclose(np_data[0], cp_data.get()[0])
-exit()
+# Check that the results match
+assert np.allclose(np_data, cp_data.get())
 
 # Getting rid of test arrays
 free_memory_pool(random_test_arrays + [all_one])
@@ -506,16 +521,14 @@ for use_pinned_memory in pinned_memory_mode:
         avg_bc = imaging_obj.timed_imaging_operation(
             N_RUNS, cupy_background_correction, "background correction", 3
         )
-        # avg_med = imaging_obj.timed_imaging_operation(
-        #     N_RUNS, cupy_median_filter, "median filter", 1, 1
-        # )
+        avg_med = imaging_obj.timed_median_filter(N_RUNS, (3, 3))
 
         if avg_add > 0:
             add_arrays_results.append(avg_add)
         if avg_bc > 0:
             background_correction_results.append(avg_bc)
-        # if avg_med > 0:
-        #     median_filter_results.append(avg_med)
+        if avg_med > 0:
+            median_filter_results.append(avg_med)
 
         write_results_to_file([LIB_NAME, memory_string], ADD_ARRAYS, add_arrays_results)
         write_results_to_file(
