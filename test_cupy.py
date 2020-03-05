@@ -473,7 +473,12 @@ padded_data = cp.pad(
     pad_width=((0, 0), (pad_height, pad_height), (pad_width, pad_width)),
     mode=REFLECT_MODE,
 )
-cupy_median_filter(data=cp_data, padded_data=padded_data, filter_height=filter_height, filter_width=filter_width)
+cupy_median_filter(
+    data=cp_data,
+    padded_data=padded_data,
+    filter_height=filter_height,
+    filter_width=filter_width,
+)
 exit()
 
 # Getting rid of test arrays
