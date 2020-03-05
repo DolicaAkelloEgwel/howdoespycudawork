@@ -25,6 +25,7 @@ extern "C"{
         unsigned int id_y = blockIdx.z*blockDim.z + threadIdx.z;
         unsigned int n_counter = 0;
         unsigned int img_size =  X * Y;
+        unsigned int padded_img_size =  (X + filter_height / 2) * (Y + filter_width / 2);
 
         if ((id_img < N_IMAGES) && (id_x < X) && (id_y < Y))
         {
@@ -32,13 +33,12 @@ extern "C"{
             {
                 for (int j = id_y; j < id_y + filter_width; j++)
                 {
-                    neighb_array[n_counter] = padded_array[(id_img * img_size) + (i * X) + j];
+                    neighb_array[n_counter] = padded_array[(id_img * padded_img_size) + (i * X) + j];
                     printf("Array index %d %d %d / idx: %d / idy: %d\n", id_img, i, j, id_x, id_y);
                     n_counter += 1;
                 }
             }
-
-            printf("Median: %3.f\n", find_median(neighb_array, filter_height * filter_width));
+            data_array[(id_img * img_size) + (id_x * X) + id_y] = find_median(neighb_array, filter_height * filter_width);
         }
     }
 }
