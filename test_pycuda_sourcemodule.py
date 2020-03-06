@@ -1,8 +1,26 @@
 from pycuda.compiler import SourceModule
+import pycuda.driver as drv
 import numpy as np
 
-from imagingtester import DTYPE, create_arrays
-from pycuda_test_utils import PyCudaImplementation
+from imagingtester import (
+    DTYPE,
+    create_arrays,
+    SIZES_SUBSET,
+    num_partitions_needed,
+    N_RUNS,
+    get_array_partition_indices,
+)
+from pycuda_test_utils import (
+    PyCudaImplementation,
+    get_free_bytes,
+    get_time,
+    time_function,
+    free_memory_pool,
+)
+from write_and_read_results import ARRAY_SIZES, write_results_to_file
+
+LIB_NAME = "pycuda"
+mode = "sourcemodule"
 
 median_filter_module = SourceModule(
     """
@@ -46,13 +64,6 @@ __global__ void median_filter(float* data_array, const float* padded_array, cons
                 neighb_array[n_counter] = padded_array[(id_img * padded_img_size) + (i * padded_img_width) + j];
                 n_counter += 1;
             }
-        }
-
-        if (0)
-        {
-            // find_median(neighb_array, filter_height * filter_width);
-            for (int i = 0; i < filter_width * filter_height; i++)
-                printf("%f ", neighb_array[i]);
         }
 
         data_array[(id_img * img_size) + (id_x * X) + id_y] = find_median(neighb_array, filter_height * filter_width);
@@ -100,12 +111,118 @@ class PyCudaSourceModuleImplementation(PyCudaImplementation):
         gpu_data_array, gpu_padded_array = self._send_arrays_to_gpu(
             [cpu_data_array, padded_cpu_array]
         )
-        print("Before median:\n", gpu_data_array[0])
-        print("")
         pycuda_median_filter(
             gpu_data_array, gpu_padded_array, filter_height, filter_width
         )
-        print("After median:\n", gpu_data_array[0])
+
+    def timed_median_filter(self, runs, filter_size):
+
+        n_partitions_needed = num_partitions_needed(
+            self.cpu_arrays[:1], get_free_bytes()
+        )
+
+        transfer_time = 0
+        operation_time = 0
+
+        pad_height = filter_size[1] // 2
+        pad_width = filter_size[0] // 2
+
+        filter_height = filter_size[0]
+        filter_width = filter_size[1]
+
+        if n_partitions_needed == 1:
+
+            # Time transfer from CPU to GPU (and padding creation)
+            start = get_time()
+            cpu_padded_array = np.pad(
+                self.cpu_arrays[0],
+                pad_width=((0, 0), (pad_width, pad_width), (pad_height, pad_height)),
+            )
+            gpu_data_array, gpu_padded_array = self._send_arrays_to_gpu(
+                [self.cpu_arrays[0], cpu_padded_array]
+            )
+            transfer_time += get_time() - start
+
+            # Repeat the operation
+            for _ in range(runs):
+                operation_time += time_function(
+                    lambda: pycuda_median_filter(
+                        gpu_data_array, gpu_padded_array, filter_height, filter_width
+                    )
+                )
+
+            # Time the transfer from GPU to CPU
+            transfer_time += time_function(lambda: gpu_data_array[0].get_async)
+
+            # Free the GPU arrays
+            free_memory_pool([gpu_data_array, gpu_padded_array])
+
+        else:
+
+            n_partitions_needed = num_partitions_needed(
+                self.cpu_arrays[:1], get_free_bytes()
+            )
+
+            indices = get_array_partition_indices(
+                self.cpu_arrays[0].shape[0], n_partitions_needed
+            )
+
+            for i in range(n_partitions_needed):
+
+                # Retrieve the segments used for this iteration of the operation
+                split_cpu_array = self.cpu_arrays[0][indices[i][0] : indices[i][1] :, :]
+
+                # Time transferring the segments to the GPU
+                start = get_time()
+                cpu_padded_array = np.pad(
+                    split_cpu_array,
+                    pad_width=(
+                        (0, 0),
+                        (pad_width, pad_width),
+                        (pad_height, pad_height),
+                    ),
+                )
+                gpu_data_array, gpu_padded_array = self._send_arrays_to_gpu(
+                    [split_cpu_array, cpu_padded_array]
+                )
+                transfer_time += get_time() - start
+
+                # Carry out the operation on the slices
+                for _ in range(runs):
+                    operation_time += time_function(
+                        lambda: pycuda_median_filter(
+                            gpu_data_array,
+                            gpu_padded_array,
+                            filter_height,
+                            filter_width,
+                        )
+                    )
+
+                transfer_time += time_function(lambda: gpu_data_array.get_async)
+
+                # Free the GPU arrays
+                free_memory_pool([gpu_data_array, gpu_padded_array])
+
+        if transfer_time > 0 and operation_time > 0:
+            self.print_operation_times(
+                operation_time, "median filter", runs, transfer_time
+            )
+
+        self.synchronise()
+
+        return transfer_time + operation_time / N_RUNS
 
 
-test = PyCudaSourceModuleImplementation((20, 20, 20), DTYPE)
+median_filter_results = []
+
+for size in ARRAY_SIZES[:SIZES_SUBSET]:
+
+    obj = PyCudaSourceModuleImplementation(size, DTYPE)
+    avg_median = obj.timed_median_filter(N_RUNS, (3, 3))
+
+    if avg_median > 0:
+        median_filter_results.append(avg_median)
+
+write_results_to_file([LIB_NAME, mode], "median filter", median_filter_results)
+
+drv.Context.pop()
