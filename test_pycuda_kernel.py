@@ -1,5 +1,6 @@
 from pycuda import gpuarray
 import pycuda.driver as drv
+from pycuda.compiler import SourceModule
 from pycuda.elementwise import ElementwiseKernel
 import numpy as np
 
@@ -57,7 +58,7 @@ class PyCudaKernelImplementation(PyCudaImplementation):
     def warm_up(self):
         warm_up_size = (1, 1, 1)
         cpu_arrays = create_arrays(warm_up_size, DTYPE)
-        gpu_arrays = self._send_arrays_to_gpu(cpu_arrays, 3)
+        gpu_arrays = self._send_arrays_to_gpu(cpu_arrays)
         BackgroundCorrectionKernel(
             gpu_arrays[0],
             gpu_arrays[1],
