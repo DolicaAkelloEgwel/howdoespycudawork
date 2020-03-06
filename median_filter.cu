@@ -28,7 +28,7 @@ extern "C"{
         unsigned int padded_img_size =  (X + filter_height - 1) * (Y + filter_width - 1);
         unsigned int padded_img_width =  X + filter_height - 1;
 
-        float neighb_array[20];
+        float neighb_array[25];
 
         if ((id_img < N_IMAGES) && (id_x < X) && (id_y < Y))
         {
