@@ -59,7 +59,7 @@ def get_used_bytes():
 
 
 def print_memory_info_after_transfer_failure(cpu_arrays):
-    print("Failed to make GPU arrays of size %s." % (cpu_arrays.shape))
+    print("Failed to make GPU arrays of size %s." % (cpu_arrays[0].shape))
     print(
         "Used bytes:",
         get_used_bytes(),
@@ -102,9 +102,7 @@ class PyCudaImplementation(ImagingTester):
             stream.synchronize()
         drv.Context.synchronize()
 
-    def timed_imaging_operation(
-        self, runs, alg, alg_name, n_arrs_needed, n_gpu_arrs_needed
-    ):
+    def timed_imaging_operation(self, runs, alg, alg_name, n_arrs_needed):
 
         n_partitions_needed = num_partitions_needed(self.cpu_arrays, get_free_bytes())
 
