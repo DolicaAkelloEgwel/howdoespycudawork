@@ -116,7 +116,7 @@ class PyCudaImplementation(ImagingTester):
             # Time transfer from CPU to GPU
             start = get_time()
             gpu_input_arrays = self._send_arrays_to_gpu(
-                self.cpu_arrays[:n_arrs_needed], n_gpu_arrs_needed
+                self.cpu_arrays[:n_arrs_needed]
             )
             transfer_time += get_time() - start
 
@@ -154,7 +154,7 @@ class PyCudaImplementation(ImagingTester):
                 # Time transferring the segments to the GPU
                 start = get_time()
                 gpu_input_arrays = self._send_arrays_to_gpu(
-                    split_cpu_arrays, n_gpu_arrs_needed
+                    split_cpu_arrays
                 )
                 transfer_time += get_time() - start
 
