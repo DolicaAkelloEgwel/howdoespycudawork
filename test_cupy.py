@@ -359,11 +359,6 @@ class CupyImplementation(ImagingTester):
 
         if n_partitions_needed == 1:
 
-            # TODO: time this too
-            # padded_array = np.pad(
-            #     self.cpu_arrays[0], pad_width=filter_size[0] // 2, mode=REFLECT_MODE
-            # )
-
             # Time the transfer from CPU to GPU
             start = get_synchronized_time()
             gpu_data_array = self._send_arrays_to_gpu([self.cpu_arrays[0]])
