@@ -18,6 +18,8 @@ TEST_PARALLEL_NUMBA = None
 USE_CUPY_NONPINNED_MEMORY = None
 FREE_MEMORY_FACTOR = None
 
+FILTER_SIZE = (3, 3)
+
 # Retrieve the benchmark parameters from the yaml file
 with open(os.path.join(os.getcwd(), "benchmarkparams.yaml")) as f:
     params = yaml.load(f, Loader=yaml.FullLoader)
