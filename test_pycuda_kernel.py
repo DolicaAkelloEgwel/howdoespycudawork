@@ -1,6 +1,5 @@
 from pycuda import gpuarray
 import pycuda.driver as drv
-from pycuda.compiler import SourceModule
 from pycuda.elementwise import ElementwiseKernel
 import numpy as np
 
@@ -88,11 +87,9 @@ for size in ARRAY_SIZES[:SIZES_SUBSET]:
 
     imaging_obj = PyCudaKernelImplementation(size, DTYPE)
 
-    avg_add = imaging_obj.timed_imaging_operation(
-        N_RUNS, AddArraysKernel, "adding", 2, 2
-    )
+    avg_add = imaging_obj.timed_imaging_operation(N_RUNS, AddArraysKernel, "adding", 2)
     avg_bc = imaging_obj.timed_imaging_operation(
-        N_RUNS, elementwise_background_correction, "background correction", 3, 3
+        N_RUNS, elementwise_background_correction, "background correction", 3
     )
 
     if avg_add > 0:
