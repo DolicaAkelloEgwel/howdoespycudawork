@@ -9,6 +9,7 @@ from imagingtester import (
     num_partitions_needed,
     N_RUNS,
     get_array_partition_indices,
+    FILTER_SIZE,
 )
 from pycuda_test_utils import (
     PyCudaImplementation,
@@ -53,7 +54,7 @@ __global__ void median_filter(float* data_array, const float* padded_array, cons
     unsigned int padded_img_size =  (X + filter_height - 1) * (Y + filter_width - 1);
     unsigned int padded_img_width =  X + filter_height - 1;
 
-    float neighb_array[20];
+    float neighb_array[25];
 
     if ((id_img < N_IMAGES) && (id_x < X) && (id_y < Y))
     {
@@ -218,7 +219,7 @@ median_filter_results = []
 for size in ARRAY_SIZES[:SIZES_SUBSET]:
 
     obj = PyCudaSourceModuleImplementation(size, DTYPE)
-    avg_median = obj.timed_median_filter(N_RUNS, (3, 3))
+    avg_median = obj.timed_median_filter(N_RUNS, FILTER_SIZE)
 
     if avg_median > 0:
         median_filter_results.append(avg_median)

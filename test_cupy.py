@@ -18,6 +18,7 @@ from imagingtester import (
     USE_CUPY_NONPINNED_MEMORY,
     memory_needed_for_arrays,
     load_median_filter_file,
+    FILTER_SIZE,
 )
 from imagingtester import num_partitions_needed as number_of_partitions_needed
 from numpy_scipy_imaging_filters import numpy_background_correction, scipy_median_filter
@@ -524,7 +525,7 @@ for use_pinned_memory in pinned_memory_mode:
         avg_bc = imaging_obj.timed_imaging_operation(
             N_RUNS, cupy_background_correction, "background correction", 3
         )
-        avg_med = imaging_obj.timed_median_filter(N_RUNS, (3, 3))
+        avg_med = imaging_obj.timed_median_filter(N_RUNS, FILTER_SIZE)
 
         if avg_add > 0:
             add_arrays_results.append(avg_add)
