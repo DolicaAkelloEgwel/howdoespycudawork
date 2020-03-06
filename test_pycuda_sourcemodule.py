@@ -100,10 +100,12 @@ class PyCudaSourceModuleImplementation(PyCudaImplementation):
         gpu_data_array, gpu_padded_array = self._send_arrays_to_gpu(
             [cpu_data_array, padded_cpu_array]
         )
+        print("Before median:\n", gpu_data_array[0])
+        print("")
         pycuda_median_filter(
             gpu_data_array, gpu_padded_array, filter_height, filter_width
         )
+        print("After median:\n", gpu_data_array[0])
 
 
 test = PyCudaSourceModuleImplementation((20, 20, 20), DTYPE)
-test.warm_up()
