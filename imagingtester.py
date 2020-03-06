@@ -131,9 +131,9 @@ def num_partitions_needed(cpu_arrays, free_bytes):
     )
 
 
-def load_median_filter_file():
+def load_median_filter_file(filename="median_filter.cu"):
     median_filter_kernel = ""
-    with open("median_filter.cu", "r") as f:
+    with open(filename, "r") as f:
         median_filter_kernel += f.read()
     if DTYPE == "float64":
         return median_filter_kernel.replace("float", "double")
