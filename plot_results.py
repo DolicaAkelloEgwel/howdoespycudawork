@@ -64,14 +64,14 @@ plt.yscale("log")
 plt.xticks(range(len(TOTAL_PIXELS)), TOTAL_PIXELS)
 plt.legend()
 
-# Plot Adding Speed Difference
-plt.subplot(3, 2, 1)
-plt.title("Speed Change For Adding Arrays When Compared With numpy")
-
 
 def truediv(a, b):
     return a / b
 
+
+# Plot Adding Speed Difference
+plt.subplot(3, 2, 1)
+plt.title("Speed Change For Adding Arrays When Compared With numpy")
 
 for key in results.keys():
     if key == "numpy":
@@ -105,6 +105,27 @@ for key in results.keys():
         continue
     print(key, diff)
     plt.plot(diff, label=key, marker=".", color=nonmedian_colours[key])
+plt.xticks(range(len(TOTAL_PIXELS)), TOTAL_PIXELS)
+plt.xlabel("Number of Pixels/Elements")
+
+# Plot Adding Speed Difference
+plt.subplot(3, 2, 5)
+plt.title("Speed Change For Adding Arrays When Compared With scipy")
+
+for key in results.keys():
+    if key == "scipy":
+        continue
+    try:
+        diff = list(
+            map(
+                truediv,
+                results["scipy"]["median filter"],
+                results[key]["median filter"],
+            )
+        )
+        plt.plot(diff, label=key, marker=".", color=median_colours[key])
+    except KeyError:
+        continue
 plt.xticks(range(len(TOTAL_PIXELS)), TOTAL_PIXELS)
 plt.xlabel("Number of Pixels/Elements")
 
