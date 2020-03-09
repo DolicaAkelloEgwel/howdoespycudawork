@@ -16,7 +16,6 @@ from imagingtester import (
     load_median_filter_file,
 )
 from imagingtester import num_partitions_needed as number_of_partitions_needed
-from numpy_scipy_imaging_filters import numpy_background_correction, scipy_median_filter
 
 LIB_NAME = "cupy"
 MAX_CUPY_MEMORY = 0.9  # Anything exceeding this seems to make malloc fail for me
@@ -393,7 +392,7 @@ class CupyImplementation(ImagingTester):
             for _ in range(runs):
                 operation_time += time_function(
                     lambda: cupy_median_filter(
-                        gpu_data_array, padded_data, filter_height, filter_width
+                        gpu_data_array, padded_array, filter_height, filter_width
                     )
                 )
 
@@ -519,39 +518,3 @@ mempool = cp.get_default_memory_pool()
 with cp.cuda.Device(0):
     mempool.set_limit(fraction=MAX_CUPY_MEMORY)
 mempool.malloc(mempool.get_limit())
-
-# Checking the two background corrections get the same result
-random_test_arrays = [
-    cp.random.uniform(low=0.0, high=20, size=(10, 10, 10)) for _ in range(3)
-]
-cp_data, cp_dark, cp_flat = random_test_arrays
-np_data, np_dark, np_flat = [cp_arr.get() for cp_arr in random_test_arrays]
-cupy_background_correction(cp_data, cp_dark, cp_flat)
-numpy_background_correction(np_data, np_dark, np_flat)
-assert np.allclose(np_data, cp_data.get())
-
-# These need to be odd values and need to be equal
-filter_height = 3
-filter_width = 3
-filter_size = (filter_height, filter_width)
-
-# Create a padded array in the GPU
-pad_height = filter_height // 2
-pad_width = filter_width // 2
-padded_data = cp.pad(
-    cp_data,
-    pad_width=((0, 0), (pad_height, pad_height), (pad_width, pad_width)),
-    mode=REFLECT_MODE,
-)
-
-# Run the median filter on the GPU
-cupy_median_filter(
-    data=cp_data,
-    padded_data=padded_data,
-    filter_height=filter_height,
-    filter_width=filter_width,
-)
-# Run the scipy median filter
-scipy_median_filter(np_data, size=filter_size)
-# Check that the results match
-assert np.allclose(np_data, cp_data.get())
