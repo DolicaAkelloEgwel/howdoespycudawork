@@ -3,36 +3,20 @@ from typing import List
 
 import cupy as cp
 import numpy as np
-from cupy.cuda.memory import set_allocator, MemoryPool, malloc_managed
+from cupy.cuda.memory import set_allocator
 
 from imagingtester import (
     ImagingTester,
     MINIMUM_PIXEL_VALUE,
     MAXIMUM_PIXEL_VALUE,
     create_arrays,
-    N_RUNS,
-    SIZES_SUBSET,
-    DTYPE,
     PRINT_INFO,
     get_array_partition_indices,
-    USE_CUPY_NONPINNED_MEMORY,
     memory_needed_for_arrays,
     load_median_filter_file,
-    FILTER_SIZE,
 )
 from imagingtester import num_partitions_needed as number_of_partitions_needed
 from numpy_scipy_imaging_filters import numpy_background_correction, scipy_median_filter
-from write_and_read_results import (
-    write_results_to_file,
-    ADD_ARRAYS,
-    BACKGROUND_CORRECTION,
-    ARRAY_SIZES,
-)
-
-if USE_CUPY_NONPINNED_MEMORY:
-    pinned_memory_mode = [True, False]
-else:
-    pinned_memory_mode = [True]
 
 LIB_NAME = "cupy"
 MAX_CUPY_MEMORY = 0.9  # Anything exceeding this seems to make malloc fail for me
@@ -69,13 +53,18 @@ def free_memory_pool(arrays=[]):
     problems.
     """
     synchronise()
+    print_after_array_deletion = False
     if arrays:
+        print_after_array_deletion = True
         for arr in arrays:
             del arr
             arr = None
         del arrays
     synchronise()
     mempool.free_all_blocks()
+    if print_after_array_deletion:
+        print("Memory after freeing:")
+    print_memory_metrics()
 
 
 def _create_pinned_memory(cpu_array):
@@ -165,6 +154,10 @@ def cupy_median_filter(data, padded_data, filter_height, filter_width):
     )
 
 
+def replace_gpu_array_contents(gpu_array, cpu_array):
+    gpu_array.set(cpu_array, cp.cuda.Stream(non_blocking=True))
+
+
 class CupyImplementation(ImagingTester):
     def __init__(self, size, dtype, pinned_memory=False):
         super().__init__(size, dtype)
@@ -199,7 +192,7 @@ class CupyImplementation(ImagingTester):
 
         for i in range(len(cpu_arrays)):
             try:
-                pinned_memory = _create_pinned_memory(cpu_arrays[i])
+                pinned_memory = _create_pinned_memory(cpu_arrays[i].copy())
                 gpu_array = cp.empty(pinned_memory.shape, dtype=self.dtype)
                 array_stream = cp.cuda.Stream(non_blocking=True)
                 gpu_array.set(pinned_memory, stream=array_stream)
@@ -223,7 +216,7 @@ class CupyImplementation(ImagingTester):
 
         for cpu_array in cpu_arrays:
             try:
-                gpu_array = cp.asarray(cpu_array)
+                gpu_array = cp.asarray(cpu_array.copy())
             except cp.cuda.memory.OutOfMemoryError:
                 self.print_memory_after_exception(cpu_arrays, gpu_arrays)
                 return []
@@ -286,12 +279,23 @@ class CupyImplementation(ImagingTester):
 
             # Determine the number of partitions required again (to be on the safe side)
             n_partitions_needed = number_of_partitions_needed(
-                self.cpu_arrays[0], get_free_bytes()
+                self.cpu_arrays[:n_arrs_needed], get_free_bytes()
             )
 
             indices = get_array_partition_indices(
                 self.cpu_arrays[0].shape[0], n_partitions_needed
             )
+
+            gpu_arrays = self._send_arrays_to_gpu(
+                [
+                    np.empty_like(arr[indices[0][0] : indices[0][1] :, :])
+                    for arr in self.cpu_arrays[:n_arrs_needed]
+                ]
+            )
+
+            # Return 0 when GPU is out of space
+            if not gpu_arrays:
+                return 0
 
             for i in range(n_partitions_needed):
 
@@ -301,14 +305,25 @@ class CupyImplementation(ImagingTester):
                     for cpu_array in self.cpu_arrays
                 ]
 
+                shape_diff = gpu_arrays[0].shape[0] - split_cpu_arrays[0].shape[0]
+
                 # Time transferring the segments to the GPU
                 start = get_synchronized_time()
-                gpu_arrays = self._send_arrays_to_gpu(split_cpu_arrays)
-                transfer_time += get_synchronized_time() - start
+                if shape_diff == 0:
+                    for j in range(n_arrs_needed):
+                        replace_gpu_array_contents(gpu_arrays[j], split_cpu_arrays[j])
+                else:
 
-                # Return 0 when GPU is out of space
-                if not gpu_arrays:
-                    return 0
+                    expanded_cpu_arrays = [
+                        np.pad(arr, pad_width=((0, shape_diff), (0, 0), (0, 0)))
+                        for arr in split_cpu_arrays
+                    ]
+                    for j in range(n_arrs_needed):
+                        replace_gpu_array_contents(
+                            gpu_arrays[j], expanded_cpu_arrays[j]
+                        )
+
+                transfer_time += get_synchronized_time() - start
 
                 try:
                     # Carry out the operation on the slices
@@ -358,6 +373,11 @@ class CupyImplementation(ImagingTester):
         filter_height = filter_size[0]
         filter_width = filter_size[1]
 
+        padded_cpu_array = np.pad(
+            self.cpu_arrays[0],
+            pad_width=((0, 0), (pad_width, pad_width), (pad_height, pad_height)),
+        )
+
         if n_partitions_needed == 1:
 
             # Time the transfer from CPU to GPU
@@ -385,26 +405,22 @@ class CupyImplementation(ImagingTester):
 
         else:
 
+            # Determine the number of partitions required again (to be on the safe side)
+            n_partitions_needed = number_of_partitions_needed(
+                [self.cpu_arrays[0], padded_cpu_array], get_free_bytes()
+            )
+
             indices = get_array_partition_indices(
                 self.cpu_arrays[0].shape[0], n_partitions_needed
             )
 
-            space_assessment_data_array = np.empty_like(
-                self.cpu_arrays[0][indices[0][0] : indices[0][1] :, :]
-            )
-            space_assessment_padded_array = np.pad(
-                space_assessment_data_array,
-                pad_width=((0, 0), (pad_width, pad_width), (pad_height, pad_height)),
-            )
-
-            # Determine the number of partitions required again (to be on the safe side)
-            n_partitions_needed = number_of_partitions_needed(
-                [space_assessment_data_array, space_assessment_padded_array],
-                get_free_bytes(),
-            )
-
             gpu_arrays = self._send_arrays_to_gpu(
-                [space_assessment_data_array, space_assessment_padded_array]
+                [
+                    np.empty_like(
+                        self.cpu_arrays[0][indices[0][0] : indices[0][1] :, :]
+                    ),
+                    np.empty_like(padded_cpu_array)[indices[0][0] : indices[0][1] :, :],
+                ]
             )
 
             # Return 0 when GPU is out of space
@@ -504,11 +520,6 @@ with cp.cuda.Device(0):
     mempool.set_limit(fraction=MAX_CUPY_MEMORY)
 mempool.malloc(mempool.get_limit())
 
-# Checking that cupy will change the value of the array
-all_one = cp.ones((1, 1, 1))
-cupy_add_arrays(all_one, all_one)
-assert cp.all(all_one == 2)
-
 # Checking the two background corrections get the same result
 random_test_arrays = [
     cp.random.uniform(low=0.0, high=20, size=(10, 10, 10)) for _ in range(3)
@@ -544,47 +555,3 @@ cupy_median_filter(
 scipy_median_filter(np_data, size=filter_size)
 # Check that the results match
 assert np.allclose(np_data, cp_data.get())
-
-# Getting rid of test arrays
-free_memory_pool(random_test_arrays + [all_one])
-
-for use_pinned_memory in pinned_memory_mode:
-
-    # Create empty lists for storing results
-    add_arrays_results = []
-    background_correction_results = []
-    median_filter_results = []
-
-    if use_pinned_memory:
-        memory_string = "with pinned memory"
-    else:
-        memory_string = "without pinned memory"
-
-    for size in ARRAY_SIZES[:SIZES_SUBSET]:
-
-        imaging_obj = CupyImplementation(size, DTYPE, use_pinned_memory)
-
-        avg_med = imaging_obj.timed_median_filter(N_RUNS, FILTER_SIZE)
-        avg_add = imaging_obj.timed_imaging_operation(
-            N_RUNS, cupy_add_arrays, "adding", 2
-        )
-        avg_bc = imaging_obj.timed_imaging_operation(
-            N_RUNS, cupy_background_correction, "background correction", 3
-        )
-
-        if avg_add > 0:
-            add_arrays_results.append(avg_add)
-        if avg_bc > 0:
-            background_correction_results.append(avg_bc)
-        if avg_med > 0:
-            median_filter_results.append(avg_med)
-
-        write_results_to_file([LIB_NAME, memory_string], ADD_ARRAYS, add_arrays_results)
-        write_results_to_file(
-            [LIB_NAME, memory_string],
-            BACKGROUND_CORRECTION,
-            background_correction_results,
-        )
-        write_results_to_file(
-            [LIB_NAME, memory_string], "median filter", median_filter_results
-        )
