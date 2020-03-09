@@ -57,8 +57,11 @@ for key in [
     "cupy with pinned memory",
     "cupy without pinned memory",
 ]:
-    p = plt.plot(results[key]["median filter"], label=key, marker=".")
-    median_colours[key] = p[-1].get_color()
+    try:
+        p = plt.plot(results[key]["median filter"], label=key, marker=".")
+        median_colours[key] = p[-1].get_color()
+    except KeyError:
+        continue
 
 plt.yscale("log")
 plt.xticks(range(len(TOTAL_PIXELS)), TOTAL_PIXELS)
@@ -110,7 +113,7 @@ plt.xlabel("Number of Pixels/Elements")
 
 # Plot Adding Speed Difference
 plt.subplot(3, 2, 5)
-plt.title("Speed Change For Adding Arrays When Compared With scipy")
+plt.title("Speed Change For Median Filter When Compared With scipy")
 
 for key in results.keys():
     if key == "scipy":
