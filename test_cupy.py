@@ -385,14 +385,33 @@ class CupyImplementation(ImagingTester):
 
         else:
 
-            # Determine the number of partitions required again (to be on the safe side)
-            n_partitions_needed = number_of_partitions_needed(
-                self.cpu_arrays[0], get_free_bytes()
-            )
-
             indices = get_array_partition_indices(
                 self.cpu_arrays[0].shape[0], n_partitions_needed
             )
+
+            space_assessment_data_array = np.empty_like(
+                self.cpu_arrays[0][indices[0][0] : indices[0][1] :, :]
+            )
+            space_assessment_padded_array = np.pad(
+                space_assessment_data_array,
+                pad_width=((0, 0), (pad_width, pad_width), (pad_height, pad_height)),
+            )
+
+            # Determine the number of partitions required again (to be on the safe side)
+            n_partitions_needed = number_of_partitions_needed(
+                [space_assessment_data_array, space_assessment_padded_array],
+                get_free_bytes(),
+            )
+
+            gpu_arrays = self._send_arrays_to_gpu(
+                [space_assessment_data_array, space_assessment_padded_array]
+            )
+
+            # Return 0 when GPU is out of space
+            if not gpu_arrays:
+                return 0
+
+            gpu_data_array, gpu_padded_array = gpu_arrays
 
             for i in range(n_partitions_needed):
 
@@ -401,20 +420,46 @@ class CupyImplementation(ImagingTester):
 
                 # Time transferring the segments to the GPU
                 start = get_synchronized_time()
-                gpu_data_array = self._send_arrays_to_gpu([split_cpu_array])
-                gpu_padded_array = cp.pad(
-                    gpu_data_array,
-                    pad_width=(
-                        (0, 0),
-                        (pad_width, pad_width),
-                        (pad_height, pad_height),
-                    ),
-                )
-                transfer_time += get_synchronized_time() - start
 
-                # Return 0 when GPU is out of space
-                if not gpu_data_array:
-                    return 0
+                if split_cpu_array.shape == gpu_data_array.shape:
+                    gpu_data_array.set(
+                        split_cpu_array, cp.cuda.Stream(non_blocking=True)
+                    )
+                    gpu_padded_array.set(
+                        np.pad(
+                            split_cpu_array,
+                            pad_width=(
+                                (0, 0),
+                                (pad_width, pad_width),
+                                (pad_height, pad_height),
+                            ),
+                        ),
+                        cp.cuda.Stream(non_blocking=True),
+                    )
+                else:
+
+                    diff = gpu_data_array.shape[0] - split_cpu_array.shape[0]
+
+                    expanded_cpu_array = np.pad(
+                        split_cpu_array, pad_width=((0, diff), (0, 0), (0, 0))
+                    )
+                    gpu_data_array.set(
+                        expanded_cpu_array, cp.cuda.Stream(non_blocking=True)
+                    )
+
+                    padded_cpu_array = np.pad(
+                        expanded_cpu_array,
+                        pad_width=(
+                            (0, 0),
+                            (pad_width, pad_width),
+                            (pad_height, pad_height),
+                        ),
+                    )
+                    gpu_padded_array.set(
+                        padded_cpu_array, cp.cuda.Stream(non_blocking=True)
+                    )
+
+                transfer_time += get_synchronized_time() - start
 
                 try:
                     # Carry out the operation on the slices
@@ -432,7 +477,7 @@ class CupyImplementation(ImagingTester):
                         "Unable to make extra arrays during operation despite successful transfer."
                     )
                     print(e)
-                    free_memory_pool(gpu_data_array)
+                    free_memory_pool([gpu_data_array, gpu_padded_array])
                     return 0
 
                 # Store time taken to transfer result
@@ -519,13 +564,13 @@ for use_pinned_memory in pinned_memory_mode:
 
         imaging_obj = CupyImplementation(size, DTYPE, use_pinned_memory)
 
+        avg_med = imaging_obj.timed_median_filter(N_RUNS, FILTER_SIZE)
         avg_add = imaging_obj.timed_imaging_operation(
             N_RUNS, cupy_add_arrays, "adding", 2
         )
         avg_bc = imaging_obj.timed_imaging_operation(
             N_RUNS, cupy_background_correction, "background correction", 3
         )
-        avg_med = imaging_obj.timed_median_filter(N_RUNS, FILTER_SIZE)
 
         if avg_add > 0:
             add_arrays_results.append(avg_add)
