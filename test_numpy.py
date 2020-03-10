@@ -32,7 +32,7 @@ class CPUImplementation(ImagingTester):
             total_time += time_function(lambda: np.add(*self.cpu_arrays[:2]))
         operation_time = total_time / reps
         self.print_operation_times(
-            operation_time=operation_time, operation_name="adding", runs=reps
+            total_time=total_time, operation_name="adding", runs=reps
         )
         return operation_time
 
@@ -45,9 +45,7 @@ class CPUImplementation(ImagingTester):
             )
         operation_time = total_time / reps
         self.print_operation_times(
-            operation_time=operation_time,
-            operation_name="background correction",
-            runs=reps,
+            total_time=total_time, operation_name="background correction", runs=reps
         )
         return operation_time
 
@@ -58,7 +56,7 @@ class CPUImplementation(ImagingTester):
             total_time += time_function(lambda: scipy_median_filter(data, FILTER_SIZE))
         operation_time = total_time / reps
         self.print_operation_times(
-            operation_time=operation_time, operation_name="median filter", runs=reps
+            total_time=total_time, operation_name="median filter", runs=reps
         )
         return operation_time
 
