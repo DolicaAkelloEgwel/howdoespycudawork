@@ -52,17 +52,10 @@ def free_memory_pool(arrays=[]):
     problems.
     """
     synchronise()
-    print_after_array_deletion = False
     if arrays:
-        print_after_array_deletion = True
-        for arr in arrays:
-            del arr
-            arr = None
-        del arrays
+        arrays.clear()
     synchronise()
     mempool.free_all_blocks()
-    if print_after_array_deletion:
-        print("Memory after freeing:")
     print_memory_metrics()
 
 
@@ -272,7 +265,9 @@ class CupyImplementation(ImagingTester):
             transfer_time += time_function(gpu_arrays[0].get)
 
             # Free the GPU arrays
+            print("Before:", mempool.used_bytes())
             free_memory_pool(gpu_arrays)
+            print("After:", mempool.used_bytes())
 
         else:
 
@@ -341,11 +336,13 @@ class CupyImplementation(ImagingTester):
                 # Store time taken to transfer result
                 transfer_time += time_function(gpu_arrays[0].get)
 
-                # Free GPU arrays
-                free_memory_pool(gpu_arrays)
+            # Free GPU arrays
+            print("Before:", mempool.used_bytes())
+            free_memory_pool(gpu_arrays)
+            print("After:", mempool.used_bytes())
 
         self.print_operation_times(
-            operation_time=operation_time,
+            total_time=operation_time,
             operation_name=alg_name,
             runs=runs,
             transfer_time=transfer_time,
@@ -502,7 +499,7 @@ class CupyImplementation(ImagingTester):
                 free_memory_pool([gpu_padded_array, gpu_data_array])
 
         self.print_operation_times(
-            operation_time=operation_time,
+            total_time=operation_time,
             operation_name="Median Filter",
             runs=runs,
             transfer_time=transfer_time,
