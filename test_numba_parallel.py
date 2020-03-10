@@ -60,7 +60,7 @@ class NumbaParallelImplementation(NumbaImplementation):
             )
 
         self.print_operation_times(
-            operation_time=operation_time, operation_name=alg_name, runs=runs
+            total_time=operation_time, operation_name=alg_name, runs=runs
         )
 
         return operation_time / runs

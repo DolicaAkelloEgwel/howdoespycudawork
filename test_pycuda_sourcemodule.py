@@ -71,7 +71,7 @@ __global__ void median_filter(float* data_array, const float* padded_array, cons
     }
 }
 """
-)
+)  #
 
 median_filter = median_filter_module.get_function("median_filter")
 

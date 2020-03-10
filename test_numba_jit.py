@@ -57,6 +57,19 @@ def background_correction(dark, data, flat, out, clip_min, clip_max):
         out[i, j, k] = clip_max
 
 
+# @cuda.jit
+# def median_filter(data_array, padded_array, filter_height, filter_width):
+#
+#     n_images, img_x, img_y = cuda.grid(3)
+#
+#     if n_images >= data_array.shape[0] or img_x >= data_array.shape[1] or img_y >= data_array.shape[2]:
+#         return
+#
+#     for i in range(img_x, img_x + filter_height):
+#         for j in range(img_y, img_y + filter_width):
+#
+
+
 class NumbaCudaJitImplementation(NumbaImplementation):
     def __init__(self, size, dtype):
         super().__init__(size, dtype)

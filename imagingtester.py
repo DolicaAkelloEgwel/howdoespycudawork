@@ -64,12 +64,12 @@ class ImagingTester:
         pass
 
     def print_operation_times(
-        self, operation_time, operation_name, runs, transfer_time=None
+        self, total_time, operation_name, runs, transfer_time=None
     ):
         """
         Print the time spent doing performing a calculation and the time spent transferring arrays.
         :param operation_name: The name of the imaging algorithm.
-        :param operation_time: The time the GPU took doing the calculations.
+        :param total_time: The time the GPU took doing the calculations.
         :param runs: The number of runs used to obtain the average operation time.
         :param transfer_time: The time spent transferring the arrays to and from the GPU.
         """
@@ -83,7 +83,7 @@ class ImagingTester:
                     self.cpu_arrays[0].shape,
                     transfer_time,
                     operation_name,
-                    operation_time / runs,
+                    total_time / runs,
                     runs,
                 )
             )
@@ -94,7 +94,7 @@ class ImagingTester:
                     self.lib_name,
                     operation_name,
                     self.cpu_arrays[0].shape,
-                    operation_time / runs,
+                    total_time / runs,
                     runs,
                 )
             )
